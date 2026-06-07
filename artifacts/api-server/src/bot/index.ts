@@ -15,9 +15,10 @@ import { eq, desc } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
 const token = process.env["TELEGRAM_BOT_TOKEN"];
-if (!token) throw new Error("TELEGRAM_BOT_TOKEN is required");
 
-export const bot = new Bot(token);
+// Create a placeholder bot — handlers below are only registered if token exists,
+// and startBot() is a no-op when the token is missing.
+export const bot = token ? new Bot(token) : null as unknown as Bot<Context>;
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,10 @@ async function sendMain(ctx: Context) {
     reply_markup: mainMenu(),
   });
 }
+
+// ─── handlers (only registered when token is present) ────────────────────────
+
+if (token && bot) {
 
 // ─── /start ─────────────────────────────────────────────────────────────────
 
@@ -585,6 +590,8 @@ bot.on("message:text", async (ctx) => {
 bot.catch((err) => {
   logger.error({ err: err.error, ctx: err.ctx?.update }, "Bot error");
 });
+
+} // end if (token && bot)
 
 export function startBot() {
   if (!process.env["TELEGRAM_BOT_TOKEN"]) {
