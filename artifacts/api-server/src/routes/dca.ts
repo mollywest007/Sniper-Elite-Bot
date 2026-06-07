@@ -52,15 +52,15 @@ router.post("/", async (req, res) => {
 });
 
 // GET /api/dca/:id
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req, res): Promise<void> => {
   const { id } = GetDcaSetupParams.parse({ id: parseInt(req.params.id) });
   const [item] = await db.select().from(dcaSetupsTable).where(eq(dcaSetupsTable.id, id));
-  if (!item) return res.status(404).json({ error: "DCA setup not found" });
+  if (!item) { res.status(404).json({ error: "DCA setup not found" }); return; }
   res.json(mapDca(item));
 });
 
 // PATCH /api/dca/:id
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", async (req, res): Promise<void> => {
   const { id } = UpdateDcaSetupParams.parse({ id: parseInt(req.params.id) });
   const body = UpdateDcaSetupBody.parse(req.body);
   const updates: Record<string, unknown> = {};
@@ -68,7 +68,7 @@ router.patch("/:id", async (req, res) => {
   if (body.intervalHours !== undefined) updates.intervalHours = body.intervalHours.toString();
 
   const [item] = await db.update(dcaSetupsTable).set(updates).where(eq(dcaSetupsTable.id, id)).returning();
-  if (!item) return res.status(404).json({ error: "DCA setup not found" });
+  if (!item) { res.status(404).json({ error: "DCA setup not found" }); return; }
   res.json(mapDca(item));
 });
 
@@ -80,25 +80,25 @@ router.delete("/:id", async (req, res) => {
 });
 
 // POST /api/dca/:id/start
-router.post("/:id/start", async (req, res) => {
+router.post("/:id/start", async (req, res): Promise<void> => {
   const { id } = StartDcaSetupParams.parse({ id: parseInt(req.params.id) });
   const nextExecution = new Date(Date.now() + 3600 * 1000);
   const [item] = await db.update(dcaSetupsTable)
     .set({ status: "active", nextExecutionAt: nextExecution })
     .where(eq(dcaSetupsTable.id, id))
     .returning();
-  if (!item) return res.status(404).json({ error: "DCA setup not found" });
+  if (!item) { res.status(404).json({ error: "DCA setup not found" }); return; }
   res.json(mapDca(item));
 });
 
 // POST /api/dca/:id/pause
-router.post("/:id/pause", async (req, res) => {
+router.post("/:id/pause", async (req, res): Promise<void> => {
   const { id } = PauseDcaSetupParams.parse({ id: parseInt(req.params.id) });
   const [item] = await db.update(dcaSetupsTable)
     .set({ status: "paused", nextExecutionAt: null })
     .where(eq(dcaSetupsTable.id, id))
     .returning();
-  if (!item) return res.status(404).json({ error: "DCA setup not found" });
+  if (!item) { res.status(404).json({ error: "DCA setup not found" }); return; }
   res.json(mapDca(item));
 });
 

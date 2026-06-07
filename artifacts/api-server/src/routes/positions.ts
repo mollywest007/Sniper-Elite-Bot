@@ -27,10 +27,10 @@ router.get("/", async (req, res) => {
 });
 
 // GET /api/positions/:id
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req, res): Promise<void> => {
   const { id } = GetPositionParams.parse({ id: parseInt(req.params.id) });
   const [pos] = await db.select().from(positionsTable).where(eq(positionsTable.id, id));
-  if (!pos) return res.status(404).json({ error: "Position not found" });
+  if (!pos) { res.status(404).json({ error: "Position not found" }); return; }
   res.json(mapPosition(pos));
 });
 

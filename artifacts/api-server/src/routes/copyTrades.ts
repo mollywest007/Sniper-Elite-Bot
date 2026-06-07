@@ -47,15 +47,15 @@ router.post("/", async (req, res) => {
 });
 
 // GET /api/copy-trades/:id
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req, res): Promise<void> => {
   const { id } = GetCopyTradeParams.parse({ id: parseInt(req.params.id) });
   const [item] = await db.select().from(copyTradesTable).where(eq(copyTradesTable.id, id));
-  if (!item) return res.status(404).json({ error: "Copy trade not found" });
+  if (!item) { res.status(404).json({ error: "Copy trade not found" }); return; }
   res.json(mapCopyTrade(item));
 });
 
 // PATCH /api/copy-trades/:id
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", async (req, res): Promise<void> => {
   const { id } = UpdateCopyTradeParams.parse({ id: parseInt(req.params.id) });
   const body = UpdateCopyTradeBody.parse(req.body);
   const updates: Record<string, unknown> = {};
@@ -64,7 +64,7 @@ router.patch("/:id", async (req, res) => {
   if (body.mode !== undefined) updates.mode = body.mode;
 
   const [item] = await db.update(copyTradesTable).set(updates).where(eq(copyTradesTable.id, id)).returning();
-  if (!item) return res.status(404).json({ error: "Copy trade not found" });
+  if (!item) { res.status(404).json({ error: "Copy trade not found" }); return; }
   res.json(mapCopyTrade(item));
 });
 
@@ -76,18 +76,18 @@ router.delete("/:id", async (req, res) => {
 });
 
 // POST /api/copy-trades/:id/start
-router.post("/:id/start", async (req, res) => {
+router.post("/:id/start", async (req, res): Promise<void> => {
   const { id } = StartCopyTradeParams.parse({ id: parseInt(req.params.id) });
   const [item] = await db.update(copyTradesTable).set({ status: "active" }).where(eq(copyTradesTable.id, id)).returning();
-  if (!item) return res.status(404).json({ error: "Copy trade not found" });
+  if (!item) { res.status(404).json({ error: "Copy trade not found" }); return; }
   res.json(mapCopyTrade(item));
 });
 
 // POST /api/copy-trades/:id/pause
-router.post("/:id/pause", async (req, res) => {
+router.post("/:id/pause", async (req, res): Promise<void> => {
   const { id } = PauseCopyTradeParams.parse({ id: parseInt(req.params.id) });
   const [item] = await db.update(copyTradesTable).set({ status: "paused" }).where(eq(copyTradesTable.id, id)).returning();
-  if (!item) return res.status(404).json({ error: "Copy trade not found" });
+  if (!item) { res.status(404).json({ error: "Copy trade not found" }); return; }
   res.json(mapCopyTrade(item));
 });
 

@@ -21,10 +21,10 @@ router.get("/", async (req, res) => {
 });
 
 // POST /api/notifications/:id/read
-router.post("/:id/read", async (req, res) => {
+router.post("/:id/read", async (req, res): Promise<void> => {
   const { id } = MarkNotificationReadParams.parse({ id: parseInt(req.params.id) });
   const [item] = await db.update(notificationsTable).set({ isRead: true }).where(eq(notificationsTable.id, id)).returning();
-  if (!item) return res.status(404).json({ error: "Notification not found" });
+  if (!item) { res.status(404).json({ error: "Notification not found" }); return; }
   res.json(mapNotification(item));
 });
 

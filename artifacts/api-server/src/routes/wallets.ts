@@ -57,19 +57,19 @@ router.post("/import", async (req, res) => {
 });
 
 // GET /api/wallets/:id
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req, res): Promise<void> => {
   const { id } = GetWalletParams.parse({ id: parseInt(req.params.id) });
   const [wallet] = await db.select().from(walletsTable).where(eq(walletsTable.id, id));
-  if (!wallet) return res.status(404).json({ error: "Wallet not found" });
+  if (!wallet) { res.status(404).json({ error: "Wallet not found" }); return; }
   res.json({ ...wallet, balanceSol: parseFloat(wallet.balanceSol), balanceUsdc: parseFloat(wallet.balanceUsdc) });
 });
 
 // PATCH /api/wallets/:id
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", async (req, res): Promise<void> => {
   const { id } = UpdateWalletParams.parse({ id: parseInt(req.params.id) });
   const body = UpdateWalletBody.parse(req.body);
   const [wallet] = await db.update(walletsTable).set(body).where(eq(walletsTable.id, id)).returning();
-  if (!wallet) return res.status(404).json({ error: "Wallet not found" });
+  if (!wallet) { res.status(404).json({ error: "Wallet not found" }); return; }
   res.json({ ...wallet, balanceSol: parseFloat(wallet.balanceSol), balanceUsdc: parseFloat(wallet.balanceUsdc) });
 });
 
@@ -81,11 +81,11 @@ router.delete("/:id", async (req, res) => {
 });
 
 // POST /api/wallets/:id/activate
-router.post("/:id/activate", async (req, res) => {
+router.post("/:id/activate", async (req, res): Promise<void> => {
   const { id } = ActivateWalletParams.parse({ id: parseInt(req.params.id) });
   await db.update(walletsTable).set({ isActive: false });
   const [wallet] = await db.update(walletsTable).set({ isActive: true }).where(eq(walletsTable.id, id)).returning();
-  if (!wallet) return res.status(404).json({ error: "Wallet not found" });
+  if (!wallet) { res.status(404).json({ error: "Wallet not found" }); return; }
   res.json({ ...wallet, balanceSol: parseFloat(wallet.balanceSol), balanceUsdc: parseFloat(wallet.balanceUsdc) });
 });
 

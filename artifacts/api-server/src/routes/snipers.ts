@@ -48,15 +48,15 @@ router.post("/", async (req, res) => {
 });
 
 // GET /api/snipers/:id
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req, res): Promise<void> => {
   const { id } = GetSniperParams.parse({ id: parseInt(req.params.id) });
   const [sniper] = await db.select().from(snipersTable).where(eq(snipersTable.id, id));
-  if (!sniper) return res.status(404).json({ error: "Sniper not found" });
+  if (!sniper) { res.status(404).json({ error: "Sniper not found" }); return; }
   res.json(mapSniper(sniper));
 });
 
 // PATCH /api/snipers/:id
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", async (req, res): Promise<void> => {
   const { id } = UpdateSniperParams.parse({ id: parseInt(req.params.id) });
   const body = UpdateSniperBody.parse(req.body);
   const updates: Record<string, unknown> = { updatedAt: new Date() };
@@ -66,7 +66,7 @@ router.patch("/:id", async (req, res) => {
   if (body.priorityFee !== undefined) updates.priorityFee = body.priorityFee;
 
   const [sniper] = await db.update(snipersTable).set(updates).where(eq(snipersTable.id, id)).returning();
-  if (!sniper) return res.status(404).json({ error: "Sniper not found" });
+  if (!sniper) { res.status(404).json({ error: "Sniper not found" }); return; }
   res.json(mapSniper(sniper));
 });
 
@@ -78,24 +78,24 @@ router.delete("/:id", async (req, res) => {
 });
 
 // POST /api/snipers/:id/start
-router.post("/:id/start", async (req, res) => {
+router.post("/:id/start", async (req, res): Promise<void> => {
   const { id } = StartSniperParams.parse({ id: parseInt(req.params.id) });
   const [sniper] = await db.update(snipersTable)
     .set({ status: "monitoring", updatedAt: new Date() })
     .where(eq(snipersTable.id, id))
     .returning();
-  if (!sniper) return res.status(404).json({ error: "Sniper not found" });
+  if (!sniper) { res.status(404).json({ error: "Sniper not found" }); return; }
   res.json(mapSniper(sniper));
 });
 
 // POST /api/snipers/:id/stop
-router.post("/:id/stop", async (req, res) => {
+router.post("/:id/stop", async (req, res): Promise<void> => {
   const { id } = StopSniperParams.parse({ id: parseInt(req.params.id) });
   const [sniper] = await db.update(snipersTable)
     .set({ status: "stopped", updatedAt: new Date() })
     .where(eq(snipersTable.id, id))
     .returning();
-  if (!sniper) return res.status(404).json({ error: "Sniper not found" });
+  if (!sniper) { res.status(404).json({ error: "Sniper not found" }); return; }
   res.json(mapSniper(sniper));
 });
 

@@ -51,15 +51,15 @@ router.post("/", async (req, res) => {
 });
 
 // GET /api/limit-orders/:id
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req, res): Promise<void> => {
   const { id } = GetLimitOrderParams.parse({ id: parseInt(req.params.id) });
   const [item] = await db.select().from(limitOrdersTable).where(eq(limitOrdersTable.id, id));
-  if (!item) return res.status(404).json({ error: "Limit order not found" });
+  if (!item) { res.status(404).json({ error: "Limit order not found" }); return; }
   res.json(mapLimitOrder(item));
 });
 
 // PATCH /api/limit-orders/:id
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", async (req, res): Promise<void> => {
   const { id } = UpdateLimitOrderParams.parse({ id: parseInt(req.params.id) });
   const body = UpdateLimitOrderBody.parse(req.body);
   const updates: Record<string, unknown> = {};
@@ -69,7 +69,7 @@ router.patch("/:id", async (req, res) => {
   if (body.autoSell !== undefined) updates.autoSell = body.autoSell;
 
   const [item] = await db.update(limitOrdersTable).set(updates).where(eq(limitOrdersTable.id, id)).returning();
-  if (!item) return res.status(404).json({ error: "Limit order not found" });
+  if (!item) { res.status(404).json({ error: "Limit order not found" }); return; }
   res.json(mapLimitOrder(item));
 });
 
