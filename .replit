@@ -74,3 +74,8 @@ externalPort = 8081
 [[ports]]
 localPort = 21142
 externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+TELEGRAM_BOT_TOKEN = "8913103101:AAHl5NrvAppCUbhc6Oih-hIRzbfSKYnH8S0"
