@@ -1,22 +1,40 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Phase Snipe API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: dashboard
+    description: Dashboard and overview
+  - name: wallets
+    description: Wallet management
+  - name: positions
+    description: Portfolio positions
+  - name: trades
+    description: Trade execution
+  - name: snipers
+    description: Sniper engine
+  - name: copy-trades
+    description: Copy trading
+  - name: limit-orders
+    description: Limit orders
+  - name: dca
+    description: Dollar cost averaging
+  - name: settings
+    description: App settings
+  - name: notifications
+    description: Notifications
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +42,743 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Get dashboard overview
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+
+  /wallets:
+    get:
+      operationId: listWallets
+      tags: [wallets]
+      summary: List all wallets
+      responses:
+        "200":
+          description: List of wallets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Wallet"
+    post:
+      operationId: createWallet
+      tags: [wallets]
+      summary: Generate a new wallet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletInput"
+      responses:
+        "201":
+          description: Created wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+
+  /wallets/import:
+    post:
+      operationId: importWallet
+      tags: [wallets]
+      summary: Import an existing wallet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletImport"
+      responses:
+        "201":
+          description: Imported wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+
+  /wallets/{id}:
+    get:
+      operationId: getWallet
+      tags: [wallets]
+      summary: Get wallet by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateWallet
+      tags: [wallets]
+      summary: Update wallet (rename)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletUpdate"
+      responses:
+        "200":
+          description: Updated wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+    delete:
+      operationId: deleteWallet
+      tags: [wallets]
+      summary: Delete wallet
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /wallets/{id}/activate:
+    post:
+      operationId: activateWallet
+      tags: [wallets]
+      summary: Set wallet as active
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Activated wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+
+  /positions:
+    get:
+      operationId: listPositions
+      tags: [positions]
+      summary: List all open positions
+      responses:
+        "200":
+          description: List of positions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Position"
+
+  /positions/{id}:
+    get:
+      operationId: getPosition
+      tags: [positions]
+      summary: Get position by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Position"
+        "404":
+          description: Not found
+
+  /trades:
+    get:
+      operationId: listTrades
+      tags: [trades]
+      summary: List trade history
+      responses:
+        "200":
+          description: Trade history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trade"
+    post:
+      operationId: executeTrade
+      tags: [trades]
+      summary: Execute a buy or sell trade
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TradeInput"
+      responses:
+        "201":
+          description: Trade executed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trade"
+
+  /snipers:
+    get:
+      operationId: listSnipers
+      tags: [snipers]
+      summary: List all sniper jobs
+      responses:
+        "200":
+          description: List of snipers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sniper"
+    post:
+      operationId: createSniper
+      tags: [snipers]
+      summary: Create a sniper job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SniperInput"
+      responses:
+        "201":
+          description: Created sniper
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sniper"
+
+  /snipers/{id}:
+    get:
+      operationId: getSniper
+      tags: [snipers]
+      summary: Get sniper by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sniper
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sniper"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateSniper
+      tags: [snipers]
+      summary: Update sniper configuration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SniperUpdate"
+      responses:
+        "200":
+          description: Updated sniper
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sniper"
+    delete:
+      operationId: deleteSniper
+      tags: [snipers]
+      summary: Delete sniper
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /snipers/{id}/start:
+    post:
+      operationId: startSniper
+      tags: [snipers]
+      summary: Start a sniper job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sniper started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sniper"
+
+  /snipers/{id}/stop:
+    post:
+      operationId: stopSniper
+      tags: [snipers]
+      summary: Stop a sniper job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Sniper stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sniper"
+
+  /copy-trades:
+    get:
+      operationId: listCopyTrades
+      tags: [copy-trades]
+      summary: List all copy trade targets
+      responses:
+        "200":
+          description: List of copy trades
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CopyTrade"
+    post:
+      operationId: createCopyTrade
+      tags: [copy-trades]
+      summary: Add a copy trade target
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CopyTradeInput"
+      responses:
+        "201":
+          description: Created copy trade
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopyTrade"
+
+  /copy-trades/{id}:
+    get:
+      operationId: getCopyTrade
+      tags: [copy-trades]
+      summary: Get copy trade by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: CopyTrade
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopyTrade"
+    patch:
+      operationId: updateCopyTrade
+      tags: [copy-trades]
+      summary: Update copy trade target
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CopyTradeUpdate"
+      responses:
+        "200":
+          description: Updated copy trade
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopyTrade"
+    delete:
+      operationId: deleteCopyTrade
+      tags: [copy-trades]
+      summary: Delete copy trade target
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /copy-trades/{id}/start:
+    post:
+      operationId: startCopyTrade
+      tags: [copy-trades]
+      summary: Start copy trading
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopyTrade"
+
+  /copy-trades/{id}/pause:
+    post:
+      operationId: pauseCopyTrade
+      tags: [copy-trades]
+      summary: Pause copy trading
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Paused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CopyTrade"
+
+  /limit-orders:
+    get:
+      operationId: listLimitOrders
+      tags: [limit-orders]
+      summary: List all limit orders
+      responses:
+        "200":
+          description: List of limit orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LimitOrder"
+    post:
+      operationId: createLimitOrder
+      tags: [limit-orders]
+      summary: Create a limit order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LimitOrderInput"
+      responses:
+        "201":
+          description: Created limit order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LimitOrder"
+
+  /limit-orders/{id}:
+    get:
+      operationId: getLimitOrder
+      tags: [limit-orders]
+      summary: Get limit order by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: LimitOrder
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LimitOrder"
+    patch:
+      operationId: updateLimitOrder
+      tags: [limit-orders]
+      summary: Update limit order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LimitOrderUpdate"
+      responses:
+        "200":
+          description: Updated limit order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LimitOrder"
+    delete:
+      operationId: deleteLimitOrder
+      tags: [limit-orders]
+      summary: Delete limit order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /dca:
+    get:
+      operationId: listDcaSetups
+      tags: [dca]
+      summary: List all DCA setups
+      responses:
+        "200":
+          description: List of DCA setups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DcaSetup"
+    post:
+      operationId: createDcaSetup
+      tags: [dca]
+      summary: Create a DCA setup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DcaSetupInput"
+      responses:
+        "201":
+          description: Created DCA setup
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DcaSetup"
+
+  /dca/{id}:
+    get:
+      operationId: getDcaSetup
+      tags: [dca]
+      summary: Get DCA setup by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: DcaSetup
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DcaSetup"
+    patch:
+      operationId: updateDcaSetup
+      tags: [dca]
+      summary: Update DCA setup
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DcaSetupUpdate"
+      responses:
+        "200":
+          description: Updated DCA setup
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DcaSetup"
+    delete:
+      operationId: deleteDcaSetup
+      tags: [dca]
+      summary: Delete DCA setup
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /dca/{id}/start:
+    post:
+      operationId: startDcaSetup
+      tags: [dca]
+      summary: Start DCA
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DcaSetup"
+
+  /dca/{id}/pause:
+    post:
+      operationId: pauseDcaSetup
+      tags: [dca]
+      summary: Pause DCA
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Paused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DcaSetup"
+
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Get current settings
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+    patch:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Update settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingsUpdate"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List recent notifications
+      responses:
+        "200":
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +789,550 @@ components:
       required:
         - status
 
+    Dashboard:
+      type: object
+      properties:
+        totalValueSol:
+          type: number
+        pnlTodaySol:
+          type: number
+        pnlTodayPercent:
+          type: number
+        walletBalanceSol:
+          type: number
+        walletBalanceUsdc:
+          type: number
+        activeSnipersCount:
+          type: integer
+        openPositionsCount:
+          type: integer
+        activeCopyTradesCount:
+          type: integer
+        recentTrades:
+          type: array
+          items:
+            $ref: "#/components/schemas/Trade"
+      required:
+        - totalValueSol
+        - pnlTodaySol
+        - pnlTodayPercent
+        - walletBalanceSol
+        - walletBalanceUsdc
+        - activeSnipersCount
+        - openPositionsCount
+        - activeCopyTradesCount
+        - recentTrades
+
+    Wallet:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        address:
+          type: string
+        balanceSol:
+          type: number
+        balanceUsdc:
+          type: number
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - address
+        - balanceSol
+        - balanceUsdc
+        - isActive
+        - createdAt
+
+    WalletInput:
+      type: object
+      properties:
+        name:
+          type: string
+      required:
+        - name
+
+    WalletImport:
+      type: object
+      properties:
+        name:
+          type: string
+        privateKey:
+          type: string
+      required:
+        - name
+        - privateKey
+
+    WalletUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+
+    Position:
+      type: object
+      properties:
+        id:
+          type: integer
+        walletId:
+          type: integer
+        tokenSymbol:
+          type: string
+        tokenName:
+          type: string
+        contractAddress:
+          type: string
+        amountTokens:
+          type: number
+        valueSol:
+          type: number
+        entryPriceSol:
+          type: number
+        currentPriceSol:
+          type: number
+        pnlPercent:
+          type: number
+        pnlSol:
+          type: number
+        marketCapUsd:
+          type: number
+        liquidityUsd:
+          type: number
+        openedAt:
+          type: string
+      required:
+        - id
+        - walletId
+        - tokenSymbol
+        - tokenName
+        - contractAddress
+        - amountTokens
+        - valueSol
+        - entryPriceSol
+        - currentPriceSol
+        - pnlPercent
+        - pnlSol
+        - marketCapUsd
+        - liquidityUsd
+        - openedAt
+
+    Trade:
+      type: object
+      properties:
+        id:
+          type: integer
+        walletId:
+          type: integer
+        type:
+          type: string
+          enum: [buy, sell]
+        tokenSymbol:
+          type: string
+        tokenName:
+          type: string
+        contractAddress:
+          type: string
+        amountSol:
+          type: number
+        amountTokens:
+          type: number
+        priceSol:
+          type: number
+        pnlPercent:
+          type: ["number", "null"]
+        pnlSol:
+          type: ["number", "null"]
+        txHash:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, success, failed]
+        executedAt:
+          type: string
+      required:
+        - id
+        - walletId
+        - type
+        - tokenSymbol
+        - tokenName
+        - contractAddress
+        - amountSol
+        - amountTokens
+        - priceSol
+        - txHash
+        - status
+        - executedAt
+
+    TradeInput:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [buy, sell]
+        contractAddress:
+          type: string
+        amountSol:
+          type: ["number", "null"]
+        percentOfPosition:
+          type: ["number", "null"]
+        slippagePercent:
+          type: number
+        priorityFee:
+          type: string
+          enum: [auto, low, medium, high]
+      required:
+        - type
+        - contractAddress
+        - slippagePercent
+        - priorityFee
+
+    Sniper:
+      type: object
+      properties:
+        id:
+          type: integer
+        walletId:
+          type: integer
+        tokenSymbol:
+          type: ["string", "null"]
+        contractAddress:
+          type: ["string", "null"]
+        buyAmountSol:
+          type: number
+        slippagePercent:
+          type: number
+        priorityFee:
+          type: string
+          enum: [auto, low, medium, high]
+        status:
+          type: string
+          enum: [idle, monitoring, sniped, stopped, failed]
+        attempts:
+          type: integer
+        latencyMs:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - walletId
+        - buyAmountSol
+        - slippagePercent
+        - priorityFee
+        - status
+        - attempts
+        - createdAt
+        - updatedAt
+
+    SniperInput:
+      type: object
+      properties:
+        contractAddress:
+          type: ["string", "null"]
+        buyAmountSol:
+          type: number
+        slippagePercent:
+          type: number
+        priorityFee:
+          type: string
+          enum: [auto, low, medium, high]
+      required:
+        - buyAmountSol
+        - slippagePercent
+        - priorityFee
+
+    SniperUpdate:
+      type: object
+      properties:
+        contractAddress:
+          type: ["string", "null"]
+        buyAmountSol:
+          type: number
+        slippagePercent:
+          type: number
+        priorityFee:
+          type: string
+          enum: [auto, low, medium, high]
+
+    CopyTrade:
+      type: object
+      properties:
+        id:
+          type: integer
+        walletId:
+          type: integer
+        targetAddress:
+          type: string
+        targetAlias:
+          type: ["string", "null"]
+        amountSol:
+          type: number
+        mode:
+          type: string
+          enum: [fixed, proportional]
+        status:
+          type: string
+          enum: [active, paused, stopped]
+        tradesCopied:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - walletId
+        - targetAddress
+        - amountSol
+        - mode
+        - status
+        - tradesCopied
+        - createdAt
+
+    CopyTradeInput:
+      type: object
+      properties:
+        targetAddress:
+          type: string
+        targetAlias:
+          type: ["string", "null"]
+        amountSol:
+          type: number
+        mode:
+          type: string
+          enum: [fixed, proportional]
+      required:
+        - targetAddress
+        - amountSol
+        - mode
+
+    CopyTradeUpdate:
+      type: object
+      properties:
+        targetAlias:
+          type: ["string", "null"]
+        amountSol:
+          type: number
+        mode:
+          type: string
+          enum: [fixed, proportional]
+
+    LimitOrder:
+      type: object
+      properties:
+        id:
+          type: integer
+        walletId:
+          type: integer
+        tokenSymbol:
+          type: string
+        contractAddress:
+          type: string
+        takeProfitPercent:
+          type: ["number", "null"]
+        stopLossPercent:
+          type: ["number", "null"]
+        trailingStopPercent:
+          type: ["number", "null"]
+        autoSell:
+          type: boolean
+        status:
+          type: string
+          enum: [active, triggered, cancelled]
+        createdAt:
+          type: string
+      required:
+        - id
+        - walletId
+        - tokenSymbol
+        - contractAddress
+        - autoSell
+        - status
+        - createdAt
+
+    LimitOrderInput:
+      type: object
+      properties:
+        contractAddress:
+          type: string
+        takeProfitPercent:
+          type: ["number", "null"]
+        stopLossPercent:
+          type: ["number", "null"]
+        trailingStopPercent:
+          type: ["number", "null"]
+        autoSell:
+          type: boolean
+      required:
+        - contractAddress
+        - autoSell
+
+    LimitOrderUpdate:
+      type: object
+      properties:
+        takeProfitPercent:
+          type: ["number", "null"]
+        stopLossPercent:
+          type: ["number", "null"]
+        trailingStopPercent:
+          type: ["number", "null"]
+        autoSell:
+          type: boolean
+
+    DcaSetup:
+      type: object
+      properties:
+        id:
+          type: integer
+        walletId:
+          type: integer
+        tokenSymbol:
+          type: string
+        contractAddress:
+          type: string
+        amountSol:
+          type: number
+        intervalHours:
+          type: number
+        status:
+          type: string
+          enum: [active, paused, stopped]
+        executionsCount:
+          type: integer
+        nextExecutionAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - walletId
+        - tokenSymbol
+        - contractAddress
+        - amountSol
+        - intervalHours
+        - status
+        - executionsCount
+        - createdAt
+
+    DcaSetupInput:
+      type: object
+      properties:
+        contractAddress:
+          type: string
+        amountSol:
+          type: number
+        intervalHours:
+          type: number
+      required:
+        - contractAddress
+        - amountSol
+        - intervalHours
+
+    DcaSetupUpdate:
+      type: object
+      properties:
+        amountSol:
+          type: number
+        intervalHours:
+          type: number
+
+    Settings:
+      type: object
+      properties:
+        id:
+          type: integer
+        defaultBuyAmountSol:
+          type: number
+        defaultSlippagePercent:
+          type: number
+        defaultPriorityFee:
+          type: string
+          enum: [auto, low, medium, high]
+        autoApprove:
+          type: boolean
+        notifyBuy:
+          type: boolean
+        notifySell:
+          type: boolean
+        notifySniper:
+          type: boolean
+        notifyWallet:
+          type: boolean
+        pinLockEnabled:
+          type: boolean
+        sessionTimeoutMinutes:
+          type: integer
+      required:
+        - id
+        - defaultBuyAmountSol
+        - defaultSlippagePercent
+        - defaultPriorityFee
+        - autoApprove
+        - notifyBuy
+        - notifySell
+        - notifySniper
+        - notifyWallet
+        - pinLockEnabled
+        - sessionTimeoutMinutes
+
+    SettingsUpdate:
+      type: object
+      properties:
+        defaultBuyAmountSol:
+          type: number
+        defaultSlippagePercent:
+          type: number
+        defaultPriorityFee:
+          type: string
+          enum: [auto, low, medium, high]
+        autoApprove:
+          type: boolean
+        notifyBuy:
+          type: boolean
+        notifySell:
+          type: boolean
+        notifySniper:
+          type: boolean
+        notifyWallet:
+          type: boolean
+        pinLockEnabled:
+          type: boolean
+        sessionTimeoutMinutes:
+          type: integer
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [buy_success, sell_success, sniper_triggered, sniper_failed, copy_trade, limit_order, dca_executed, wallet_alert]
+        title:
+          type: string
+        message:
+          type: string
+        tokenSymbol:
+          type: ["string", "null"]
+        amountSol:
+          type: ["number", "null"]
+        pnlPercent:
+          type: ["number", "null"]
+        txHash:
+          type: ["string", "null"]
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - type
+        - title
+        - message
+        - isRead
+        - createdAt
