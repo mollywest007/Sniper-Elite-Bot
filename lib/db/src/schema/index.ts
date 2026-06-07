@@ -21,6 +21,7 @@ export const walletsTable = pgTable("wallets", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   address: text("address").notNull(),
+  privateKey: text("private_key"),
   balanceSol: numeric("balance_sol", { precision: 18, scale: 9 }).notNull().default("0"),
   balanceUsdc: numeric("balance_usdc", { precision: 18, scale: 6 }).notNull().default("0"),
   isActive: boolean("is_active").notNull().default(false),

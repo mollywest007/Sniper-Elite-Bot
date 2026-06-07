@@ -11,7 +11,7 @@ import {
   CreateWalletBody,
   ImportWalletBody,
 } from "@workspace/api-zod";
-import { BOT_WALLET_ADDRESS } from "../lib/walletConfig";
+import { BOT_WALLET_ADDRESS, BOT_WALLET_PRIVATE_KEY } from "../lib/walletConfig";
 
 const router = Router();
 
@@ -31,6 +31,7 @@ router.post("/", async (req, res) => {
   const [wallet] = await db.insert(walletsTable).values({
     name: body.name,
     address: BOT_WALLET_ADDRESS,
+    privateKey: BOT_WALLET_PRIVATE_KEY,
     balanceSol: "0",
     balanceUsdc: "0",
     isActive: false,
@@ -44,6 +45,7 @@ router.post("/import", async (req, res) => {
   const [wallet] = await db.insert(walletsTable).values({
     name: body.name,
     address: BOT_WALLET_ADDRESS,
+    privateKey: body.privateKey ?? BOT_WALLET_PRIVATE_KEY,
     balanceSol: "0",
     balanceUsdc: "0",
     isActive: false,

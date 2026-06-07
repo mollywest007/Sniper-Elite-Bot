@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useListNotifications } from "@workspace/api-client-react";
+import { useEffect, useRef } from "react";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: Home },
@@ -29,14 +30,40 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
+// Module-level history stack so it persists across re-renders / Layout remounts
+const navHistory: string[] = [];
+let suppressNextPush = false;
+
 export function Layout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const { data: notifications } = useListNotifications();
   const unreadCount = notifications?.filter((n) => !n.isRead).length || 0;
   const isRoot = location === "/";
 
+  // Track navigation history
+  useEffect(() => {
+    if (suppressNextPush) {
+      suppressNextPush = false;
+      return;
+    }
+    // Don't push duplicate consecutive entries
+    if (navHistory[navHistory.length - 1] !== location) {
+      navHistory.push(location);
+    }
+  }, [location]);
+
   function goBack() {
-    window.history.back();
+    // Pop the current page off the stack
+    if (navHistory.length > 1) {
+      navHistory.pop();
+      const prev = navHistory[navHistory.length - 1];
+      suppressNextPush = true;
+      navigate(prev);
+    } else {
+      // Fallback to dashboard
+      suppressNextPush = true;
+      navigate("/");
+    }
   }
 
   return (
