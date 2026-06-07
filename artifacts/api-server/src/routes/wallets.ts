@@ -11,14 +11,9 @@ import {
   CreateWalletBody,
   ImportWalletBody,
 } from "@workspace/api-zod";
+import { BOT_WALLET_ADDRESS } from "../lib/walletConfig";
 
 const router = Router();
-
-// Generate a random Solana-like address
-function generateAddress(): string {
-  const chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-  return Array.from({ length: 44 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-}
 
 // GET /api/wallets
 router.get("/", async (req, res) => {
@@ -35,7 +30,7 @@ router.post("/", async (req, res) => {
   const body = CreateWalletBody.parse(req.body);
   const [wallet] = await db.insert(walletsTable).values({
     name: body.name,
-    address: generateAddress(),
+    address: BOT_WALLET_ADDRESS,
     balanceSol: "0",
     balanceUsdc: "0",
     isActive: false,
@@ -48,9 +43,9 @@ router.post("/import", async (req, res) => {
   const body = ImportWalletBody.parse(req.body);
   const [wallet] = await db.insert(walletsTable).values({
     name: body.name,
-    address: generateAddress(),
-    balanceSol: (Math.random() * 5).toFixed(4),
-    balanceUsdc: (Math.random() * 500).toFixed(2),
+    address: BOT_WALLET_ADDRESS,
+    balanceSol: "0",
+    balanceUsdc: "0",
     isActive: false,
   }).returning();
   res.status(201).json({ ...wallet, balanceSol: parseFloat(wallet.balanceSol), balanceUsdc: parseFloat(wallet.balanceUsdc) });
