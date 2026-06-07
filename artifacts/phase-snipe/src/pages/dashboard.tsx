@@ -29,10 +29,10 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold font-mono tracking-tight uppercase">Command Center</h1>
+        <h1 className="text-3xl font-bold font-mono tracking-tight uppercase">Command Center</h1>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
         <Card className="bg-card/50 border-border">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-xs text-muted-foreground uppercase font-mono tracking-wider">Total Value</CardTitle>
@@ -129,7 +129,7 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-mono uppercase tracking-wider text-muted-foreground">Recent Trades</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            {dashboard.recentTrades.length === 0 ? (
+            {(dashboard.recentTrades?.length ?? 0) === 0 ? (
               <div className="p-8 text-center text-sm font-mono text-muted-foreground">
                 No recent trades
               </div>

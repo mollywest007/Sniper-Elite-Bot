@@ -106,8 +106,8 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold font-mono tracking-tight uppercase">Settings</h1>
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold font-mono tracking-tight uppercase">Settings</h1>
       
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">

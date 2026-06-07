@@ -85,9 +85,9 @@ export default function Wallets() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold font-mono tracking-tight uppercase">Wallet Manager</h1>
+        <h1 className="text-3xl font-bold font-mono tracking-tight uppercase">Wallet Manager</h1>
         <div className="flex gap-2">
           <Dialog open={importOpen} onOpenChange={setImportOpen}>
             <DialogTrigger asChild>

@@ -59,14 +59,14 @@ export default function Buy() {
   }
 
   return (
-    <div className="space-y-6 max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold font-mono tracking-tight uppercase">Buy Token</h1>
+    <div className="space-y-6 max-w-2xl">
+      <h1 className="text-3xl font-bold font-mono tracking-tight uppercase">Buy Token</h1>
       
       <Card className="bg-card/50 border-border">
-        <CardHeader className="p-4 border-b border-border/50">
+        <CardHeader className="p-6 border-b border-border/50">
           <CardTitle className="text-sm font-mono uppercase tracking-wider text-muted-foreground">Quick Buy</CardTitle>
         </CardHeader>
-        <CardContent className="p-4">
+        <CardContent className="p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField

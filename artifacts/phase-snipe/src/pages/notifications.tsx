@@ -54,9 +54,9 @@ export default function Notifications() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold font-mono tracking-tight uppercase">System Logs</h1>
+        <h1 className="text-3xl font-bold font-mono tracking-tight uppercase">System Logs</h1>
       </div>
 
       <div className="space-y-4">

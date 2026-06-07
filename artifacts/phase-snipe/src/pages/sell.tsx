@@ -71,8 +71,8 @@ export default function Sell() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold font-mono tracking-tight uppercase">Sell Position</h1>
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold font-mono tracking-tight uppercase">Sell Position</h1>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-4">
