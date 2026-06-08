@@ -702,42 +702,12 @@ bot.on("callback_query:data", async (ctx) => {
   }
 
   if (data.startsWith("sniper:buy:")) {
-    const [,, addr, amtStr] = data.split(":");
-    const amt = parseFloat(amtStr);
-    const balance = await getWalletBalance();
-    if (amt > balance) {
-      return edit(`❌ *Insufficient balance.* You have *${fSol(balance)} SOL*.`, kbBack("sniper:panel", "◀ Back"));
-    }
-    const cfg = getSniperConfig(userId);
-    const [w] = await db.select().from(walletsTable).where(eq(walletsTable.address, WALLET_ADDRESS));
-    if (!w) return edit("❌ Wallet not found.", kbBack("menu:home"));
-    const txHash = generateTxHash();
-    const newBalance = balance - amt;
-    await updateWalletBalance(newBalance);
-    await db.insert(snipersTable).values({
-      walletId: w.id, contractAddress: addr,
-      buyAmountSol: String(amt), slippagePercent: String(cfg.slippage),
-      priorityFee: cfg.priorityFee, status: "monitoring", attempts: 0,
-    });
-    await db.insert(tradesTable).values({
-      walletId: w.id, type: "buy", tokenSymbol: "UNKNOWN", tokenName: "Unknown Token",
-      contractAddress: addr, amountSol: String(amt), priceSol: "0.000001", txHash, status: "success",
-    });
-    return edit(
-      `━━━━━━━━━━━━━━━━━━━━━━\n🔫 *SNIPER ARMED!*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `CA: \`${trunc(addr, 8)}\`\n` +
-      `Amount: *${fSol(amt)} SOL*\n` +
-      `Slippage: *${cfg.slippage}%*\n` +
-      `Priority: *${cfg.priorityFee}*\n` +
-      `TP: *+${cfg.takeProfitPct}%*  ·  SL: *-${cfg.stopLossPct}%*\n` +
-      `Status: *🟡 Monitoring for liquidity...*\n\n` +
-      `💰 New Balance: *${fSol(newBalance)} SOL*\n\n` +
-      `🔗 TX: \`${trunc(txHash, 12)}\`\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━`,
-      new InlineKeyboard()
-        .text("📊 View Snipers", "sniper:list").text("💰 Wallet", "wallet:panel").row()
-        .text("◀ Sniper Panel", "sniper:panel")
-    );
+    const parts2 = data.split(":");
+    const addr = parts2[2];
+    // Override buy amount if passed explicitly from a button (e.g. "0.5")
+    const overrideAmt = parts2[3] ? parseFloat(parts2[3]) : null;
+    if (overrideAmt !== null) getSniperConfig(userId).buyAmount = overrideAmt;
+    return executeBuy(ctx, userId, addr);
   }
 
   // ═══════════════ PORTFOLIO ══════════════════════════════════════════════
@@ -992,7 +962,7 @@ bot.on("callback_query:data", async (ctx) => {
       `\`/set slippage 10\`\n` +
       `\`/set fee auto|low|medium|high\`\n\n` +
       `*📌 CA Paste:*\n` +
-      `Paste any Solana CA and bot shows buy options\n\n` +
+      `Paste any Solana CA → bot auto-buys instantly using your Sniper Panel config\n\n` +
       `━━━━━━━━━━━━━━━━━━━━━━`,
       kbBack("menu:home", "◀ Main Menu")
     );
@@ -1000,7 +970,97 @@ bot.on("callback_query:data", async (ctx) => {
 });
 
 // ═══════════════════════════════════════════════════════
-// SECTION 10 — TEXT MESSAGE HANDLER
+// SECTION 10 — SHARED BUY EXECUTOR
+// ═══════════════════════════════════════════════════════
+// Single function used by both the CA auto-detect and the
+// manual "Paste CA" flow.  No confirmation screen — fires
+// the trade immediately using the user's sniper config.
+
+async function executeBuy(ctx: Context, userId: number, ca: string) {
+  const cfg     = getSniperConfig(userId);
+  const balance = await getWalletBalance();
+
+  if (cfg.buyAmount > balance) {
+    return ctx.reply(
+      `━━━━━━━━━━━━━━━━━━━━━━\n❌ *INSUFFICIENT BALANCE*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `You need *${fSol(cfg.buyAmount)} SOL* but only have *${fSol(balance)} SOL*.\n\n` +
+      `Lower your buy amount or deposit more SOL.`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard()
+          .text("📥 Deposit", "deposit:show").text("✏️ Edit Config", "sniper:edit").row()
+          .text("🏠 Main Menu", "menu:home"),
+      }
+    );
+  }
+
+  const [w] = await db.select().from(walletsTable).where(eq(walletsTable.address, WALLET_ADDRESS));
+  if (!w) return ctx.reply("❌ Wallet not found. Please contact support.");
+
+  // Simulate execution — show "placing order" first
+  const loadingMsg = await ctx.reply(
+    `⚡ *Placing order...*\nCA: \`${trunc(ca, 8)}\``,
+    { parse_mode: "Markdown" }
+  );
+
+  // Small simulated delay (feels real)
+  await new Promise(r => setTimeout(r, 600));
+
+  const txHash = generateTxHash();
+  const newBal = parseFloat((balance - cfg.buyAmount).toFixed(9));
+
+  await Promise.all([
+    updateWalletBalance(newBal),
+    db.insert(snipersTable).values({
+      walletId: w.id,
+      contractAddress: ca,
+      buyAmountSol: String(cfg.buyAmount),
+      slippagePercent: String(cfg.slippage),
+      priorityFee: cfg.priorityFee,
+      status: "monitoring",
+      attempts: 1,
+    }),
+    db.insert(tradesTable).values({
+      walletId: w.id,
+      type: "buy",
+      tokenSymbol: "UNKNOWN",
+      tokenName: "Unknown Token",
+      contractAddress: ca,
+      amountSol: String(cfg.buyAmount),
+      priceSol: "0.000001",
+      txHash,
+      status: "success",
+    }),
+  ]);
+
+  // Delete the loading message, send final result
+  try { await ctx.api.deleteMessage(ctx.chat!.id, loadingMsg.message_id); } catch {}
+
+  return ctx.reply(
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `✅ *BUY EXECUTED*\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `📍 CA: \`${trunc(ca, 10)}\`\n\n` +
+    `💸 *Amount:*       ${fSol(cfg.buyAmount)} SOL\n` +
+    `📊 *Slippage:*     ${cfg.slippage}%\n` +
+    `⚡ *Priority:*     ${cfg.priorityFee}\n` +
+    `🎯 *Take Profit:*  +${cfg.takeProfitPct}%\n` +
+    `🛑 *Stop Loss:*    -${cfg.stopLossPct}%\n\n` +
+    `💰 *New Balance:* ${fSol(newBal)} SOL\n\n` +
+    `🔗 *TX Hash:*\n\`${trunc(txHash, 14)}\`\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `🟡 *Monitoring for liquidity...*`,
+    {
+      parse_mode: "Markdown",
+      reply_markup: new InlineKeyboard()
+        .text("📊 View Snipers", "sniper:list").text("💰 Wallet", "wallet:panel").row()
+        .text("📈 Sniper Panel", "sniper:panel").text("🏠 Home", "menu:home"),
+    }
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// SECTION 11 — TEXT MESSAGE HANDLER
 // ═══════════════════════════════════════════════════════
 
 bot.on("message:text", async (ctx) => {
@@ -1054,31 +1114,11 @@ bot.on("message:text", async (ctx) => {
     });
   }
 
-  // Sniper — awaiting CA
+  // Sniper — awaiting CA (from "Paste CA" button in panel) — auto-buy immediately
   if (flow?.type === "snipe_ca") {
     pendingFlows.delete(userId);
-    if (!isValidCA(raw)) return ctx.reply("❌ *Invalid contract address.*", { parse_mode: "Markdown" });
-    const cfg = getSniperConfig(userId);
-    const balance = await getWalletBalance();
-    return ctx.reply(
-      `━━━━━━━━━━━━━━━━━━━━━━\n🔍 *TOKEN DETECTED*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `CA: \`${raw}\`\n\n` +
-      `⚙️ *Your Config:*\n` +
-      `Buy Amount: *${fSol(cfg.buyAmount)} SOL*\n` +
-      `Slippage: *${cfg.slippage}%*  ·  Fee: *${cfg.priorityFee}*\n` +
-      `TP: *+${cfg.takeProfitPct}%*  ·  SL: *-${cfg.stopLossPct}%*\n\n` +
-      `💰 Balance: *${fSol(balance)} SOL*\n\n` +
-      `Confirm snipe?`,
-      {
-        parse_mode: "Markdown",
-        reply_markup: new InlineKeyboard()
-          .text(`🔫 Snipe ${fSol(cfg.buyAmount)} SOL`, `sniper:buy:${raw}:${cfg.buyAmount}`).row()
-          .text("💰 0.1 SOL", `sniper:buy:${raw}:0.1`)
-          .text("💰 0.5 SOL", `sniper:buy:${raw}:0.5`)
-          .text("💰 1 SOL",   `sniper:buy:${raw}:1.0`).row()
-          .text("❌ Cancel", "sniper:panel"),
-      }
-    );
+    if (!isValidCA(raw)) return ctx.reply("❌ *Invalid contract address.* Please send a valid Solana CA.", { parse_mode: "Markdown" });
+    return executeBuy(ctx, userId, raw);
   }
 
   // Sniper config edits
@@ -1135,65 +1175,11 @@ bot.on("message:text", async (ctx) => {
     return ctx.reply(`✅ *Broadcast sent to ${sent}/${registeredUsers.size} users.*`, { parse_mode: "Markdown" });
   }
 
-  // ── CA auto-detect ─────────────────────────────────────────────────────
+  // ── CA auto-detect — always auto-buy using sniper panel config ────────────
+  // No confirmation screen, no options menu.
+  // Just paste a CA → bot fires the buy immediately.
   if (isValidCA(raw)) {
-    const cfg = getSniperConfig(userId);
-    const balance = await getWalletBalance();
-
-    // Snipe mode is ON — auto-snipe immediately
-    if (snipeModeActive.has(userId)) {
-      const [w] = await db.select().from(walletsTable).where(eq(walletsTable.address, WALLET_ADDRESS));
-      if (!w) return ctx.reply("❌ Wallet not found.");
-      if (cfg.buyAmount > balance) return ctx.reply(`❌ *Insufficient balance.* You have *${fSol(balance)} SOL*.`, { parse_mode: "Markdown" });
-      const txHash = generateTxHash();
-      const newBal = balance - cfg.buyAmount;
-      await updateWalletBalance(newBal);
-      await db.insert(snipersTable).values({
-        walletId: w.id, contractAddress: raw,
-        buyAmountSol: String(cfg.buyAmount), slippagePercent: String(cfg.slippage),
-        priorityFee: cfg.priorityFee, status: "monitoring", attempts: 0,
-      });
-      await db.insert(tradesTable).values({
-        walletId: w.id, type: "buy", tokenSymbol: "UNKNOWN", tokenName: "Unknown Token",
-        contractAddress: raw, amountSol: String(cfg.buyAmount), priceSol: "0.000001", txHash, status: "success",
-      });
-      return ctx.reply(
-        `━━━━━━━━━━━━━━━━━━━━━━\n🔫 *SNIPED!*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `CA: \`${trunc(raw, 8)}\`\n` +
-        `Amount: *${fSol(cfg.buyAmount)} SOL*\n` +
-        `Slippage: *${cfg.slippage}%*  Fee: *${cfg.priorityFee}*\n` +
-        `TP: *+${cfg.takeProfitPct}%*  ·  SL: *-${cfg.stopLossPct}%*\n` +
-        `Status: *🟡 Monitoring for liquidity...*\n\n` +
-        `💰 New Balance: *${fSol(newBal)} SOL*\n` +
-        `🔗 TX: \`${trunc(txHash, 12)}\`\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━`,
-        {
-          parse_mode: "Markdown",
-          reply_markup: new InlineKeyboard()
-            .text("📊 View Snipers", "sniper:list").text("💰 Wallet", "wallet:panel").row()
-            .text("🏠 Main Menu", "menu:home"),
-        }
-      );
-    }
-
-    // Snipe mode OFF — offer options
-    return ctx.reply(
-      `━━━━━━━━━━━━━━━━━━━━━━\n🔍 *TOKEN DETECTED*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `CA: \`${raw}\`\n\n` +
-      `💰 Balance: *${fSol(balance)} SOL*\n` +
-      `⚙️ Config: *${fSol(cfg.buyAmount)} SOL* · *${cfg.slippage}%* slip · *${cfg.priorityFee}*\n\n` +
-      `Choose an action:`,
-      {
-        parse_mode: "Markdown",
-        reply_markup: new InlineKeyboard()
-          .text(`🔫 Snipe ${fSol(cfg.buyAmount)} SOL`, `sniper:buy:${raw}:${cfg.buyAmount}`).row()
-          .text("💰 0.1 SOL", `sniper:buy:${raw}:0.1`)
-          .text("💰 0.5 SOL", `sniper:buy:${raw}:0.5`)
-          .text("💰 1 SOL",   `sniper:buy:${raw}:1.0`).row()
-          .text("📈 Sniper Panel", "sniper:panel")
-          .text("❌ Dismiss",      "menu:home"),
-      }
-    );
+    return executeBuy(ctx, userId, raw);
   }
 
   // ── /set command ────────────────────────────────────────────────────────
