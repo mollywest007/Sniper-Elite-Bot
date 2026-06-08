@@ -13,6 +13,10 @@ import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
 
+router.get("/", (_req, res) => {
+  res.json({ status: "ok" });
+});
+
 router.use(healthRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/wallets", walletsRouter);

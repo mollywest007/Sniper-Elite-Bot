@@ -39,8 +39,9 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-- API Server workflow uses `pnpm run start` (not `dev`) — the `dev` script builds then starts, which takes too long for the workflow's port-open timeout. Always pre-build with `pnpm --filter @workspace/api-server run build` before restarting the workflow after code changes.
-- Frontend vite config requires both `PORT` and `BASE_PATH` env vars — set them inline in the workflow command.
+- After changing API server code: run `pnpm --filter @workspace/api-server run build` first, then restart the workflow. The `dev` script now skips the build step so it starts instantly.
+- The API artifact health check hits `GET /api` — it must return HTTP 200 or Replit kills the process. A root handler in `routes/index.ts` keeps this alive.
+- Frontend vite config requires both `PORT` and `BASE_PATH` env vars — injected automatically by Replit's workflow runner.
 
 ## Pointers
 

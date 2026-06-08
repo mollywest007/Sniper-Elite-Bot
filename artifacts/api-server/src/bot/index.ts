@@ -427,7 +427,9 @@ bot.on("callback_query:data", async (ctx) => {
   async function edit(text: string, kb?: InlineKeyboard) {
     try {
       await ctx.editMessageText(text, { parse_mode: "Markdown", reply_markup: kb });
-    } catch {
+    } catch (err: any) {
+      const msg: string = err?.message ?? "";
+      if (msg.includes("message is not modified") || msg.includes("there is no text in the message to edit")) return;
       await ctx.reply(text, { parse_mode: "Markdown", reply_markup: kb });
     }
   }

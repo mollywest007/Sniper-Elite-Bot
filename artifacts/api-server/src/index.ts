@@ -5,6 +5,13 @@ import { db } from "@workspace/db";
 import { walletsTable, settingsTable } from "@workspace/db";
 import { BOT_WALLET_ADDRESS, BOT_WALLET_PRIVATE_KEY } from "./lib/walletConfig";
 
+process.on("unhandledRejection", (reason) => {
+  console.error("[CRASH] Unhandled promise rejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[CRASH] Uncaught exception:", err);
+});
+
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {
