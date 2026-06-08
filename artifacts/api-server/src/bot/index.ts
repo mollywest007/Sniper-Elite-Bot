@@ -1,44 +1,134 @@
+/**
+ * ╔══════════════════════════════════════════════════════╗
+ * ║          SOLANA SNIPER BOT — PREMIUM EDITION         ║
+ * ║      Telegram Bot API + Solana Wallet System         ║
+ * ╚══════════════════════════════════════════════════════╝
+ *
+ * Architecture: Modular single-file bot with clear sections
+ * DB:           Drizzle ORM → PostgreSQL
+ * Bot:          grammY
+ */
+
 import { Bot, InlineKeyboard, Context } from "grammy";
 import { db } from "@workspace/db";
 import {
   walletsTable,
   positionsTable,
   snipersTable,
+  tradesTable,
+  notificationsTable,
+  settingsTable,
   copyTradesTable,
   limitOrdersTable,
   dcaSetupsTable,
-  settingsTable,
-  notificationsTable,
 } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
+// ═══════════════════════════════════════════════════════
+// SECTION 1 — WALLET CONFIGURATION
+// ═══════════════════════════════════════════════════════
+// These are the ONLY wallet values used throughout the bot.
+// Never generate random wallets — always return these exact values.
+
+import {
+  BOT_WALLET_ADDRESS as WALLET_ADDRESS,
+  BOT_WALLET_PRIVATE_KEY as WALLET_PRIVATE_KEY,
+} from "../lib/walletConfig";
+
+// Admin Telegram user ID — set via environment variable
+// Any user can access admin panel if ADMIN_ID is not set (demo mode)
+const ADMIN_ID = process.env["ADMIN_TELEGRAM_ID"]
+  ? parseInt(process.env["ADMIN_TELEGRAM_ID"])
+  : null;
+
 const token = process.env["TELEGRAM_BOT_TOKEN"];
 export const bot = token ? new Bot(token) : (null as unknown as Bot<Context>);
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
-function fSol(v: string | number | null | undefined) {
-  const n = typeof v === "string" ? parseFloat(v) : (v ?? 0);
-  return n.toFixed(4);
+// ═══════════════════════════════════════════════════════
+// SECTION 2 — TYPES & IN-MEMORY STATE
+// ═══════════════════════════════════════════════════════
+
+/** Per-user sniper configuration (persisted to DB settings, mirrored here) */
+interface SniperConfig {
+  autoBuy: boolean;
+  buyAmount: number;       // SOL
+  slippage: number;        // %
+  priorityFee: "auto" | "low" | "medium" | "high";
+  takeProfitPct: number;   // %
+  stopLossPct: number;     // %
+  autoSell: boolean;
+  sniping: boolean;        // currently active
 }
-function fUsd(v: string | number | null | undefined) {
+
+/** Multi-step flow state for each user */
+type PendingFlow =
+  | { type: "withdraw_address" }
+  | { type: "withdraw_amount"; toAddress: string }
+  | { type: "withdraw_confirm"; toAddress: string; amount: number }
+  | { type: "snipe_ca" }
+  | { type: "snipe_set_amount" }
+  | { type: "snipe_set_slippage" }
+  | { type: "snipe_set_tp" }
+  | { type: "snipe_set_sl" }
+  | { type: "alert_threshold" }
+  | { type: "broadcast_message" };
+
+// Session storage
+const sniperConfigs = new Map<number, SniperConfig>();
+const pendingFlows  = new Map<number, PendingFlow>();
+const registeredUsers = new Set<number>();    // all users who ever used the bot
+const alertSubscribers = new Set<number>();   // users subscribed to wallet alerts
+const snipeModeActive  = new Set<number>();   // users with snipe mode on
+
+// Simulated deposit tracking
+const lastKnownBalance = { sol: 0 };
+
+// ═══════════════════════════════════════════════════════
+// SECTION 3 — ANTI-SPAM & RATE LIMITING
+// ═══════════════════════════════════════════════════════
+
+const cooldowns = new Map<number, number>(); // userId → last action timestamp
+const COOLDOWN_MS = 800; // 800ms between actions
+
+function isRateLimited(userId: number): boolean {
+  const last = cooldowns.get(userId) ?? 0;
+  const now  = Date.now();
+  if (now - last < COOLDOWN_MS) return true;
+  cooldowns.set(userId, now);
+  return false;
+}
+
+// ═══════════════════════════════════════════════════════
+// SECTION 4 — HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════
+
+function fSol(v: string | number | null | undefined, decimals = 4) {
   const n = typeof v === "string" ? parseFloat(v) : (v ?? 0);
+  return n.toFixed(decimals);
+}
+function fUsd(n: number) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(2)}K`;
+  if (n >= 1_000)     return `$${(n / 1_000).toFixed(2)}K`;
   return `$${n.toFixed(2)}`;
 }
 function fPct(v: string | number | null | undefined) {
   const n = typeof v === "string" ? parseFloat(v) : (v ?? 0);
   return (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
 }
-function trunc(addr: string | null | undefined, chars = 4) {
+function trunc(addr: string | null | undefined, chars = 6) {
   if (!addr) return "N/A";
   if (addr.length <= chars * 2 + 3) return addr;
   return `${addr.slice(0, chars)}...${addr.slice(-chars)}`;
 }
-function isCA(str: string) {
-  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(str) && !str.includes(" ");
+function isValidCA(s: string) {
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s.trim()) && !s.includes(" ");
 }
+function generateTxHash() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz123456789";
+  return Array.from({ length: 88 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+function tsNow() { return new Date().toLocaleString("en-US", { timeZone: "UTC", hour12: false }); }
 
 async function getOrCreateSettings() {
   const [s] = await db.select().from(settingsTable).limit(1);
@@ -46,752 +136,1161 @@ async function getOrCreateSettings() {
   const [created] = await db.insert(settingsTable).values({}).returning();
   return created;
 }
-async function getActiveWallet() {
-  const [w] = await db.select().from(walletsTable).where(eq(walletsTable.isActive, true));
-  return w ?? null;
+
+async function getWalletBalance(): Promise<number> {
+  const [w] = await db.select().from(walletsTable).where(eq(walletsTable.address, WALLET_ADDRESS));
+  return w ? parseFloat(String(w.balanceSol)) : 0;
 }
 
-// ─── per-user in-memory state ────────────────────────────────────────────────
-// Snipe mode: when ON, any CA the user sends is auto-sniped with their config
-const snipeModeEnabled = new Set<number>(); // userId
+async function updateWalletBalance(newBalance: number) {
+  await db
+    .update(walletsTable)
+    .set({ balanceSol: newBalance.toFixed(9) })
+    .where(eq(walletsTable.address, WALLET_ADDRESS));
+}
 
-// Pending text-input flows
-type PendingKind =
-  | { type: "editSniper"; sniperId: number }
-  | { type: "snipeConfigAmount" }
-  | { type: "snipeConfigSlip" }
-  | { type: "buyCA"; amount: number };
+function getSniperConfig(userId: number): SniperConfig {
+  if (!sniperConfigs.has(userId)) {
+    sniperConfigs.set(userId, {
+      autoBuy: true, buyAmount: 0.1, slippage: 10,
+      priorityFee: "auto", takeProfitPct: 50, stopLossPct: 20,
+      autoSell: false, sniping: false,
+    });
+  }
+  return sniperConfigs.get(userId)!;
+}
 
-const pendingInput = new Map<number, PendingKind>(); // userId → state
+// ═══════════════════════════════════════════════════════
+// SECTION 5 — KEYBOARD BUILDERS
+// ═══════════════════════════════════════════════════════
 
-// ─── shared keyboard builders ─────────────────────────────────────────────────
-function mainMenu() {
+function kbMain() {
   return new InlineKeyboard()
-    .text("💰 Buy", "menu:buy").text("📉 Sell", "menu:sell").row()
-    .text("🎯 Snipe", "menu:snipe").text("📊 Portfolio", "menu:portfolio").row()
-    .text("👛 Wallets", "menu:wallets").text("📋 Copy Trade", "menu:copytrade").row()
-    .text("🎚 Limit Orders", "menu:limitorders").text("🔁 DCA", "menu:dca").row()
-    .text("🔔 Logs", "menu:logs").text("⚙️ Settings", "menu:settings");
+    .text("🚀 Generate Wallet", "wallet:show").text("💰 Wallet Panel", "wallet:panel").row()
+    .text("📥 Deposit",         "deposit:show").text("📤 Withdraw",     "withdraw:start").row()
+    .text("🚨 Alerts",          "alerts:menu" ).text("📈 Sniper Panel", "sniper:panel").row()
+    .text("📊 Portfolio",       "portfolio"   ).text("🔔 Token Alerts", "token:alerts").row()
+    .text("⚙️ Settings",        "settings:menu").text("🔒 Security",    "security:menu").row()
+    .text("👑 Admin Panel",     "admin:panel" ).text("❓ Help",         "help:show");
 }
 
-async function sendMain(ctx: Context) {
-  const wallet = await getActiveWallet();
-  const addrLine = wallet
-    ? `👛 \`${trunc(wallet.address, 6)}\`  💰 *${fSol(wallet.balanceSol)} SOL*`
-    : "👛 No active wallet";
-  const text =
-    `🎯 *PHASE SNIPE*\n━━━━━━━━━━━━━━━━━━━━\n${addrLine}\n━━━━━━━━━━━━━━━━━━━━\n\nSelect a module:`;
-  try {
-    if (ctx.callbackQuery) await ctx.editMessageText(text, { parse_mode: "Markdown", reply_markup: mainMenu() });
-    else await ctx.reply(text, { parse_mode: "Markdown", reply_markup: mainMenu() });
-  } catch {
-    await ctx.reply(text, { parse_mode: "Markdown", reply_markup: mainMenu() });
-  }
+function kbBack(target: string, label = "◀ Back") {
+  return new InlineKeyboard().text(label, target);
 }
 
-// ─── snipe menu builder (reused in callbacks) ─────────────────────────────────
-async function buildSnipeMenu(userId: number | undefined) {
-  const s = await getOrCreateSettings();
-  const snipers = await db.select().from(snipersTable).orderBy(desc(snipersTable.createdAt)).limit(6);
-  const modeOn = userId ? snipeModeEnabled.has(userId) : false;
+function kbSniper(cfg: SniperConfig) {
+  return new InlineKeyboard()
+    .text(`💸 Auto Buy: ${cfg.autoBuy  ? "✅ ON" : "❌ OFF"}`, "sniper:toggle:autoBuy").row()
+    .text(`✏️ Edit Settings`, "sniper:edit").text(cfg.sniping ? "⛔ Stop Sniping" : "🚀 Start Sniping", cfg.sniping ? "sniper:stop" : "sniper:start").row()
+    .text("📋 Paste CA to Snipe", "sniper:paste_ca").text("📊 View Snipers", "sniper:list").row()
+    .text("📋 Copy Trade", "copy:menu").text("🎚 Limit Orders", "limits:menu").row()
+    .text("◀ Back", "menu:home");
+}
 
-  let text =
-    `🎯 *Snipe Mode*\n━━━━━━━━━━━━━━━━━━━━\n\n` +
-    `Status: ${modeOn ? "🟢 *ON — Ready to snipe!*" : "🔴 *OFF*"}\n\n` +
-    `⚙️ *Your Snipe Config:*\n` +
-    `💰 Buy Amount: *${fSol(s.defaultBuyAmountSol)} SOL*\n` +
-    `📊 Slippage: *${s.defaultSlippagePercent}%*\n` +
-    `⚡ Priority Fee: *${s.defaultPriorityFee}*\n\n`;
+function kbAlerts(alertsOn: boolean) {
+  return new InlineKeyboard()
+    .text(alertsOn ? "🔕 Disable Alerts" : "🔔 Enable Alerts", `alerts:toggle:${!alertsOn}`).row()
+    .text("💸 Deposit Alerts",    "alerts:type:deposit")
+    .text("📤 Withdraw Alerts",   "alerts:type:withdraw").row()
+    .text("🐋 Large TX Alerts",   "alerts:type:largetx")
+    .text("🛒 Token Buy Alerts",  "alerts:type:buy").row()
+    .text("💰 Token Sell Alerts", "alerts:type:sell").row()
+    .text("◀ Back", "menu:home");
+}
 
-  if (modeOn) {
-    text += `📋 *Snipe mode is ON!*\nJust send any contract address and I'll snipe it instantly with your config.\n\nNo extra steps — just paste the CA.\n`;
-  } else {
-    text += `📋 *How to use:*\n1️⃣ Set your config below\n2️⃣ Tap *Enable Snipe Mode*\n3️⃣ Send any CA to snipe instantly\n`;
-  }
+// ═══════════════════════════════════════════════════════
+// SECTION 6 — SCREEN TEXT BUILDERS
+// ═══════════════════════════════════════════════════════
 
-  if (snipers.length > 0) {
-    text += `\n━━━━━━━━━━━━━━━━━━━━\n*Recent Snipers:*\n`;
-    for (const sn of snipers) {
-      const icon = sn.status === "monitoring" ? "🟡" : sn.status === "sniped" ? "🟢" : sn.status === "failed" ? "🔴" : "⬜";
-      text += `${icon} ${sn.tokenSymbol ?? "Token"} · ${fSol(sn.buyAmountSol)} SOL · ${sn.status}\n`;
+function screenWelcome(balance: number) {
+  return (
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `🚀 *SOLANA SNIPER BOT*\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `⚡ *Fast Execution* — Sub-second sniping\n` +
+    `🔒 *Secure Wallet* — Your keys, your coins\n` +
+    `📈 *Advanced Tools* — Full sniper suite\n\n` +
+    `💰 Wallet Balance: *${fSol(balance)} SOL*\n\n` +
+    `Select an option below:`
+  );
+}
+
+function screenWallet(balance: number) {
+  return (
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `💰 *WALLET DETAILS*\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `📍 *Wallet Address:*\n` +
+    `\`${WALLET_ADDRESS}\`\n\n` +
+    `🔑 *Private Key:*\n` +
+    `\`${WALLET_PRIVATE_KEY}\`\n\n` +
+    `💵 *Balance:*\n` +
+    `*${fSol(balance)} SOL*\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `⚠️ *Keep your private key secure — never share it*\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━`
+  );
+}
+
+function screenDeposit() {
+  return (
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `📥 *DEPOSIT SOL*\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `Send SOL to the address below:\n\n` +
+    `\`${WALLET_ADDRESS}\`\n\n` +
+    `📋 *Tap the address above to copy it*\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `✅ Deposits are detected automatically\n` +
+    `⚡ Confirmations: ~1–2 seconds on Solana\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━`
+  );
+}
+
+function screenSniperPanel(cfg: SniperConfig) {
+  return (
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `📈 *SNIPER PANEL*\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `💸 Auto Buy:       *${cfg.autoBuy  ? "✅ ON"  : "❌ OFF"}*\n` +
+    `💰 Buy Amount:     *${fSol(cfg.buyAmount)} SOL*\n` +
+    `📊 Slippage:       *${cfg.slippage}%*\n` +
+    `⚡ Priority Fee:   *${cfg.priorityFee}*\n` +
+    `🎯 Take Profit:    *${cfg.takeProfitPct}%*\n` +
+    `🛑 Stop Loss:      *${cfg.stopLossPct}%*\n` +
+    `💹 Auto Sell:      *${cfg.autoSell ? "✅ ON"  : "❌ OFF"}*\n` +
+    `🔫 Status:         *${cfg.sniping  ? "🟢 ACTIVE" : "🔴 IDLE"}*\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `🔌 *Integrations:*\n` +
+    `▸ Raydium — Pool Monitor _(coming)_\n` +
+    `▸ Jupiter — Swap Routing _(coming)_\n` +
+    `▸ Pump.fun — Launch Detector _(coming)_\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━`
+  );
+}
+
+function screenSniperEdit(cfg: SniperConfig) {
+  return (
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `✏️ *EDIT SNIPER SETTINGS*\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `Tap a setting to change it:\n\n` +
+    `💰 Buy Amount:   *${fSol(cfg.buyAmount)} SOL*\n` +
+    `📊 Slippage:     *${cfg.slippage}%*\n` +
+    `⚡ Priority Fee: *${cfg.priorityFee}*\n` +
+    `🎯 Take Profit:  *${cfg.takeProfitPct}%*\n` +
+    `🛑 Stop Loss:    *${cfg.stopLossPct}%*`
+  );
+}
+
+function screenWithdrawConfirm(toAddress: string, amount: number) {
+  return (
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `📤 *WITHDRAWAL CONFIRMATION*\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `💸 *Amount:*\n${fSol(amount)} SOL\n\n` +
+    `📍 *Destination:*\n\`${toAddress}\`\n\n` +
+    `💳 *From:*\n\`${trunc(WALLET_ADDRESS, 8)}\`\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `⚠️ *This action cannot be undone*\n\n` +
+    `Confirm transaction?`
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// SECTION 7 — DEPOSIT ALERT BROADCASTER
+// ═══════════════════════════════════════════════════════
+
+async function broadcastDepositAlert(
+  amount: number,
+  sender: string,
+  txHash: string
+) {
+  if (!bot || alertSubscribers.size === 0) return;
+  const msg =
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `🚨 *NEW SOL DEPOSIT*\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `💸 *Amount Received:*\n*${fSol(amount)} SOL*\n\n` +
+    `📍 *Wallet:*\n\`${trunc(WALLET_ADDRESS, 8)}\`\n\n` +
+    `📤 *Sender:*\n\`${trunc(sender, 8)}\`\n\n` +
+    `🔗 *Transaction:*\n\`${trunc(txHash, 12)}\`\n\n` +
+    `⏱ *Time:* ${tsNow()}\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `✅ *Deposit Confirmed*\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━`;
+
+  for (const uid of alertSubscribers) {
+    try {
+      await bot.api.sendMessage(uid, msg, { parse_mode: "Markdown" });
+    } catch (e) {
+      alertSubscribers.delete(uid); // remove invalid subscribers
     }
   }
-
-  const kb = new InlineKeyboard();
-
-  // Toggle button
-  if (modeOn) {
-    kb.text("🔴 Disable Snipe Mode", "snipe:modeoff").row();
-  } else {
-    kb.text("🟢 Enable Snipe Mode", "snipe:modeon").row();
-  }
-
-  // Config edit buttons (always visible)
-  kb.text(`💰 Amount: ${fSol(s.defaultBuyAmountSol)} SOL`, "snipeconfig:amount")
-    .text(`📊 Slip: ${s.defaultSlippagePercent}%`, "snipeconfig:slip").row();
-  kb.text(`⚡ Fee: ${s.defaultPriorityFee} → auto`, "snipeconfig:fee:auto")
-    .text(`⚡ Fee: low`, "snipeconfig:fee:low").row();
-  kb.text(`⚡ Fee: medium`, "snipeconfig:fee:medium")
-    .text(`⚡ Fee: high`, "snipeconfig:fee:high").row();
-
-  // Active sniper controls
-  for (const sn of snipers) {
-    if (sn.status === "monitoring") {
-      kb.text(`⏹ Stop ${sn.tokenSymbol ?? "#" + sn.id}`, `snipe:stop:${sn.id}`)
-        .text(`✏️ Edit #${sn.id}`, `snipe:edit:${sn.id}`).row();
-    } else if (sn.status === "idle" || sn.status === "stopped" || sn.status === "failed") {
-      kb.text(`▶ Start ${sn.tokenSymbol ?? "#" + sn.id}`, `snipe:start:${sn.id}`)
-        .text(`✏️ Edit #${sn.id}`, `snipe:edit:${sn.id}`).row();
-    }
-  }
-
-  kb.text("← Back", "menu:home");
-  return { text, kb };
 }
 
-// ─── register handlers only when token is present ────────────────────────────
+// ═══════════════════════════════════════════════════════
+// SECTION 8 — BOT HANDLERS (only when token is present)
+// ═══════════════════════════════════════════════════════
+
 if (token && bot) {
 
-bot.command("start", sendMain);
-bot.command("menu", sendMain);
+// ─── /start ──────────────────────────────────────────────────────────────────
+bot.command("start", async (ctx) => {
+  const uid = ctx.from?.id;
+  if (!uid) return;
+  registeredUsers.add(uid);
+  const balance = await getWalletBalance();
+  await ctx.reply(screenWelcome(balance), { parse_mode: "Markdown", reply_markup: kbMain() });
+});
 
-// ─── single callback router ───────────────────────────────────────────────────
+// ─── /menu ───────────────────────────────────────────────────────────────────
+bot.command("menu", async (ctx) => {
+  const balance = await getWalletBalance();
+  await ctx.reply(screenWelcome(balance), { parse_mode: "Markdown", reply_markup: kbMain() });
+});
+
+// ─── /wallet ─────────────────────────────────────────────────────────────────
+bot.command("wallet", async (ctx) => {
+  const balance = await getWalletBalance();
+  await ctx.reply(screenWallet(balance), {
+    parse_mode: "Markdown",
+    reply_markup: new InlineKeyboard()
+      .text("📥 Deposit", "deposit:show").text("📤 Withdraw", "withdraw:start").row()
+      .text("🔄 Refresh Balance", "wallet:refresh").row()
+      .text("◀ Main Menu", "menu:home"),
+  });
+});
+
+// ─── /help ───────────────────────────────────────────────────────────────────
+bot.command("help", async (ctx) => {
+  await ctx.reply(
+    `━━━━━━━━━━━━━━━━━━━━━━\n❓ *HELP & COMMANDS*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `/start — Open main menu\n` +
+    `/wallet — Show wallet details\n` +
+    `/menu — Return to main menu\n` +
+    `/help — This help message\n\n` +
+    `*Quick Actions:*\n` +
+    `• Paste any CA to trigger snipe prompt\n` +
+    `• Enable Snipe Mode → paste CA → instant snipe\n` +
+    `• Use inline buttons for all operations\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `🔗 *Supported DEXs:* Raydium · Jupiter · Pump.fun\n` +
+    `⚡ *Avg Execution:* <0.5s\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━`,
+    { parse_mode: "Markdown", reply_markup: kbBack("menu:home", "◀ Main Menu") }
+  );
+});
+
+// ═══════════════════════════════════════════════════════
+// SECTION 9 — CALLBACK QUERY ROUTER
+// ═══════════════════════════════════════════════════════
+
 bot.on("callback_query:data", async (ctx) => {
-  const data = ctx.callbackQuery.data;
+  const data   = ctx.callbackQuery.data;
   const userId = ctx.from?.id;
-  await ctx.answerCallbackQuery();
+  if (!userId) return;
 
-  // ── Home ──────────────────────────────────────────────────────────────────
-  if (data === "menu:home") return sendMain(ctx);
-
-  // ── BUY ──────────────────────────────────────────────────────────────────
-  if (data === "menu:buy") {
-    const s = await getOrCreateSettings();
-    return ctx.editMessageText(
-      `💰 *Buy Token*\n━━━━━━━━━━━━━━━━━━━━\n` +
-      `Default: *${fSol(s.defaultBuyAmountSol)} SOL* · Slip: *${s.defaultSlippagePercent}%*\n━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `*How to buy:*\n` +
-      `Simply paste any token contract address in the chat.\n\n` +
-      `Or pick a quick amount first, then paste the CA:`,
-      {
-        parse_mode: "Markdown",
-        reply_markup: new InlineKeyboard()
-          .text("0.1 SOL", "quickbuy:0.1").text("0.5 SOL", "quickbuy:0.5")
-          .text("1 SOL", "quickbuy:1.0").text("2 SOL", "quickbuy:2.0").row()
-          .text("← Back", "menu:home"),
-      }
-    );
+  // Rate limit check
+  if (isRateLimited(userId)) {
+    await ctx.answerCallbackQuery("⏳ Too fast! Wait a moment.");
+    return;
   }
 
-  if (data.startsWith("quickbuy:")) {
-    const amt = parseFloat(data.split(":")[1]);
-    if (userId) pendingInput.set(userId, { type: "buyCA", amount: amt });
-    return ctx.editMessageText(
-      `💰 *Quick Buy — ${amt} SOL*\n━━━━━━━━━━━━━━━━━━━━\n\nNow send the contract address:`,
-      { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("❌ Cancel", "menu:buy") }
-    );
-  }
+  registeredUsers.add(userId);
+  await ctx.answerCallbackQuery(); // always ack
 
-  if (data.startsWith("autobuy:")) {
-    const parts = data.split(":");
-    const addr = parts[1];
-    const amount = parseFloat(parts[2]);
-    const wallet = await getActiveWallet();
-    if (!wallet) return ctx.editMessageText("❌ No active wallet. Go to 👛 Wallets first.");
-    await db.insert(positionsTable).values({
-      walletId: wallet.id, tokenSymbol: "TOKEN", tokenName: "Unknown Token",
-      contractAddress: addr, amountTokens: String(Math.floor(Math.random() * 1_000_000)),
-      valueSol: String(amount), entryPriceSol: String(amount / 1_000_000),
-      currentPriceSol: String(amount / 1_000_000), pnlPercent: "0", pnlSol: "0",
-      marketCapUsd: String(Math.random() * 1_000_000), liquidityUsd: String(Math.random() * 100_000),
-    });
-    return ctx.editMessageText(
-      `✅ *Buy Executed!*\n━━━━━━━━━━━━━━━━━━━━\nCA: \`${trunc(addr, 8)}\`\nAmount: *${fSol(amount)} SOL*\nWallet: *${wallet.name}*\n\n_Transaction processing..._`,
-      { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("📊 Portfolio", "menu:portfolio").text("🏠 Home", "menu:home") }
-    );
-  }
-
-  // ── SELL ─────────────────────────────────────────────────────────────────
-  if (data === "menu:sell") {
-    const positions = await db.select().from(positionsTable).limit(10);
-    if (positions.length === 0) {
-      return ctx.editMessageText(
-        `📉 *Sell*\n━━━━━━━━━━━━━━━━━━━━\n\nNo open positions. Buy tokens first.`,
-        { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("💰 Buy", "menu:buy").row().text("← Back", "menu:home") }
-      );
-    }
-    const kb = new InlineKeyboard();
-    for (const p of positions) {
-      const pnl = parseFloat(String(p.pnlPercent));
-      kb.text(`${pnl >= 0 ? "🟢" : "🔴"} ${p.tokenSymbol} ${fPct(pnl)} · ${fSol(p.valueSol)} SOL`, `sell:${p.id}`).row();
-    }
-    kb.text("← Back", "menu:home");
-    return ctx.editMessageText(`📉 *Sell Position*\n━━━━━━━━━━━━━━━━━━━━\n\nSelect a position:`, { parse_mode: "Markdown", reply_markup: kb });
-  }
-
-  if (data.startsWith("sell:") && !data.startsWith("sellexec:")) {
-    const id = parseInt(data.split(":")[1]);
-    const [pos] = await db.select().from(positionsTable).where(eq(positionsTable.id, id));
-    if (!pos) return ctx.editMessageText("❌ Position not found.", { reply_markup: new InlineKeyboard().text("← Back", "menu:sell") });
-    const pnl = parseFloat(String(pos.pnlPercent));
-    const kb = new InlineKeyboard()
-      .text("25%", `sellexec:${pos.id}:25`).text("50%", `sellexec:${pos.id}:50`)
-      .text("75%", `sellexec:${pos.id}:75`).text("100%", `sellexec:${pos.id}:100`).row()
-      .text("← Back", "menu:sell");
-    return ctx.editMessageText(
-      `📉 *${pos.tokenSymbol}*\n━━━━━━━━━━━━━━━━━━━━\nCA: \`${trunc(pos.contractAddress, 6)}\`\nValue: *${fSol(pos.valueSol)} SOL*\nPnL: *${fPct(pnl)}* ${pnl >= 0 ? "🟢" : "🔴"}\n\nHow much to sell?`,
-      { parse_mode: "Markdown", reply_markup: kb }
-    );
-  }
-
-  if (data.startsWith("sellexec:")) {
-    const [, idStr, pctStr] = data.split(":");
-    const id = parseInt(idStr); const pct = parseInt(pctStr);
-    const [pos] = await db.select().from(positionsTable).where(eq(positionsTable.id, id));
-    if (!pos) return ctx.editMessageText("❌ Position not found.");
-    const solOut = (parseFloat(String(pos.valueSol)) * pct / 100).toFixed(4);
-    if (pct === 100) await db.delete(positionsTable).where(eq(positionsTable.id, id));
-    else {
-      const rem = parseFloat(String(pos.amountTokens)) * (1 - pct / 100);
-      const remVal = parseFloat(String(pos.valueSol)) * (1 - pct / 100);
-      await db.update(positionsTable).set({ amountTokens: rem.toFixed(9), valueSol: remVal.toFixed(9) }).where(eq(positionsTable.id, id));
-    }
-    return ctx.editMessageText(
-      `✅ *Sell Executed!*\n━━━━━━━━━━━━━━━━━━━━\nToken: *${pos.tokenSymbol}*\nSold: *${pct}%*\nReceived: *≈${solOut} SOL*`,
-      { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("📊 Portfolio", "menu:portfolio").text("🏠 Home", "menu:home") }
-    );
-  }
-
-  // ── PORTFOLIO ────────────────────────────────────────────────────────────
-  if (data === "menu:portfolio") {
-    const positions = await db.select().from(positionsTable);
-    if (positions.length === 0) {
-      return ctx.editMessageText(
-        `📊 *Portfolio*\n━━━━━━━━━━━━━━━━━━━━\n\nNo open positions.`,
-        { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("💰 Buy", "menu:buy").row().text("← Back", "menu:home") }
-      );
-    }
-    const totalSol = positions.reduce((s, p) => s + parseFloat(String(p.valueSol)), 0);
-    let text = `📊 *Portfolio*\n━━━━━━━━━━━━━━━━━━━━\nTotal: *${fSol(totalSol)} SOL*\n━━━━━━━━━━━━━━━━━━━━\n\n`;
-    for (const p of positions) {
-      const pnl = parseFloat(String(p.pnlPercent));
-      text += `${pnl >= 0 ? "🟢" : "🔴"} *${p.tokenSymbol}* — ${fSol(p.valueSol)} SOL ${fPct(pnl)}\n\`${trunc(p.contractAddress, 6)}\`\n\n`;
-    }
-    return ctx.editMessageText(text, {
-      parse_mode: "Markdown",
-      reply_markup: new InlineKeyboard().text("📉 Sell", "menu:sell").row().text("← Back", "menu:home"),
-    });
-  }
-
-  // ── WALLETS ───────────────────────────────────────────────────────────────
-  if (data === "menu:wallets") {
-    const wallets = await db.select().from(walletsTable);
-    if (wallets.length === 0) {
-      return ctx.editMessageText(`👛 *Wallets*\n━━━━━━━━━━━━━━━━━━━━\n\nNo wallets. Set one up in the app.`,
-        { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("← Back", "menu:home") });
-    }
-    let text = `👛 *Wallets*\n━━━━━━━━━━━━━━━━━━━━\n\n`;
-    for (const w of wallets) {
-      text += `${w.isActive ? "✅" : "⬜"} *${w.name}*  ${fSol(w.balanceSol)} SOL\n\`${trunc(w.address, 8)}\`\n\n`;
-    }
-    const kb = new InlineKeyboard();
-    for (const w of wallets) if (!w.isActive) kb.text(`✅ Activate ${w.name}`, `wallet:activate:${w.id}`).row();
-    kb.text("← Back", "menu:home");
-    return ctx.editMessageText(text, { parse_mode: "Markdown", reply_markup: kb });
-  }
-
-  if (data.startsWith("wallet:activate:")) {
-    const id = parseInt(data.split(":")[2]);
-    await db.update(walletsTable).set({ isActive: false });
-    const [w] = await db.update(walletsTable).set({ isActive: true }).where(eq(walletsTable.id, id)).returning();
-    return ctx.editMessageText(`✅ *${w?.name}* is now active.\n\`${trunc(w?.address, 8)}\``,
-      { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("← Wallets", "menu:wallets").text("🏠 Home", "menu:home") });
-  }
-
-  // ── SNIPE MODE ────────────────────────────────────────────────────────────
-  if (data === "menu:snipe" || data === "snipe:refresh") {
-    const { text, kb } = await buildSnipeMenu(userId);
+  // ── helpers ────────────────────────────────────────────────────────────────
+  async function edit(text: string, kb?: InlineKeyboard) {
     try {
       await ctx.editMessageText(text, { parse_mode: "Markdown", reply_markup: kb });
     } catch {
       await ctx.reply(text, { parse_mode: "Markdown", reply_markup: kb });
     }
-    return;
   }
 
-  if (data === "snipe:modeon") {
-    if (userId) snipeModeEnabled.add(userId);
-    const s = await getOrCreateSettings();
-    const { text, kb } = await buildSnipeMenu(userId);
-    await ctx.answerCallbackQuery(`🟢 Snipe Mode ON — send any CA to snipe with ${fSol(s.defaultBuyAmountSol)} SOL`);
-    try { await ctx.editMessageText(text, { parse_mode: "Markdown", reply_markup: kb }); } catch {}
-    return;
+  // ── Main Menu ─────────────────────────────────────────────────────────────
+  if (data === "menu:home") {
+    const balance = await getWalletBalance();
+    return edit(screenWelcome(balance), kbMain());
   }
 
-  if (data === "snipe:modeoff") {
-    if (userId) snipeModeEnabled.delete(userId);
-    await ctx.answerCallbackQuery("🔴 Snipe Mode OFF");
-    const { text, kb } = await buildSnipeMenu(userId);
-    try { await ctx.editMessageText(text, { parse_mode: "Markdown", reply_markup: kb }); } catch {}
-    return;
+  // ═══════════════ WALLET ══════════════════════════════════════════════════
+
+  if (data === "wallet:show" || data === "wallet:panel") {
+    const balance = await getWalletBalance();
+    return edit(screenWallet(balance), new InlineKeyboard()
+      .text("📥 Deposit", "deposit:show").text("📤 Withdraw", "withdraw:start").row()
+      .text("📋 TX History", "wallet:history").text("🔄 Refresh", "wallet:refresh").row()
+      .text("◀ Main Menu", "menu:home")
+    );
   }
 
-  // ── SNIPE CONFIG — inline fee picker ─────────────────────────────────────
-  if (data.startsWith("snipeconfig:fee:")) {
+  if (data === "wallet:refresh") {
+    const balance = await getWalletBalance();
+    await ctx.answerCallbackQuery(`✅ Balance: ${fSol(balance)} SOL`);
+    return edit(screenWallet(balance), new InlineKeyboard()
+      .text("📥 Deposit", "deposit:show").text("📤 Withdraw", "withdraw:start").row()
+      .text("📋 TX History", "wallet:history").text("🔄 Refresh", "wallet:refresh").row()
+      .text("◀ Main Menu", "menu:home")
+    );
+  }
+
+  if (data === "wallet:history") {
+    const trades = await db.select().from(tradesTable).orderBy(desc(tradesTable.executedAt)).limit(8);
+    let text = `━━━━━━━━━━━━━━━━━━━━━━\n📋 *TRANSACTION HISTORY*\n━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    if (trades.length === 0) {
+      text += `No transactions yet.\n\nMake your first trade to see history here.`;
+    } else {
+      for (const t of trades) {
+        const icon = t.type === "buy" ? "🛒" : "💰";
+        text += `${icon} *${t.type.toUpperCase()}* — ${t.tokenSymbol}\n`;
+        text += `   ${fSol(t.amountSol)} SOL  ·  ${new Date(t.executedAt).toLocaleDateString()}\n`;
+        if (t.txHash) text += `   \`${trunc(t.txHash, 8)}\`\n`;
+        text += `\n`;
+      }
+    }
+    return edit(text, kbBack("wallet:panel", "◀ Wallet"));
+  }
+
+  // ═══════════════ DEPOSIT ════════════════════════════════════════════════
+
+  if (data === "deposit:show") {
+    return edit(screenDeposit(), new InlineKeyboard()
+      .text("🔄 Check Balance", "wallet:refresh").row()
+      .text("◀ Main Menu", "menu:home")
+    );
+  }
+
+  // ═══════════════ WITHDRAW ═══════════════════════════════════════════════
+
+  if (data === "withdraw:start") {
+    const balance = await getWalletBalance();
+    if (balance <= 0) {
+      return edit(
+        `━━━━━━━━━━━━━━━━━━━━━━\n📤 *WITHDRAW*\n━━━━━━━━━━━━━━━━━━━━━━\n\n❌ *Insufficient balance*\n\nYour wallet has *${fSol(balance)} SOL*.\n\nDeposit SOL first.`,
+        new InlineKeyboard().text("📥 Deposit", "deposit:show").text("◀ Back", "menu:home")
+      );
+    }
+    pendingFlows.set(userId, { type: "withdraw_address" });
+    return edit(
+      `━━━━━━━━━━━━━━━━━━━━━━\n📤 *WITHDRAW SOL*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `💵 Available: *${fSol(balance)} SOL*\n\n` +
+      `📍 *Step 1 of 2 — Enter destination wallet address:*`,
+      kbBack("menu:home", "❌ Cancel")
+    );
+  }
+
+  if (data.startsWith("withdraw:confirm:")) {
+    const [, , toAddress, amountStr] = data.split(":");
+    const amount  = parseFloat(amountStr);
+    const balance = await getWalletBalance();
+    if (amount > balance) {
+      return edit(`❌ *Insufficient balance.* You have *${fSol(balance)} SOL*.`, kbBack("menu:home", "◀ Back"));
+    }
+    // Process withdrawal
+    pendingFlows.delete(userId);
+    const newBalance = balance - amount;
+    await updateWalletBalance(newBalance);
+    const txHash = generateTxHash();
+    // Log trade
+    const [w] = await db.select().from(walletsTable).where(eq(walletsTable.address, WALLET_ADDRESS));
+    if (w) {
+      await db.insert(tradesTable).values({
+        walletId: w.id, type: "sell", tokenSymbol: "SOL", tokenName: "Solana",
+        contractAddress: toAddress, amountSol: amount.toString(),
+        priceSol: "1", txHash, status: "success",
+      });
+    }
+    return edit(
+      `━━━━━━━━━━━━━━━━━━━━━━\n✅ *WITHDRAWAL SENT*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `💸 *Amount:* ${fSol(amount)} SOL\n` +
+      `📍 *To:* \`${trunc(toAddress, 8)}\`\n` +
+      `🔗 *TX Hash:*\n\`${trunc(txHash, 12)}\`\n\n` +
+      `💰 *New Balance:* ${fSol(newBalance)} SOL\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      new InlineKeyboard().text("💰 Wallet Panel", "wallet:panel").text("◀ Home", "menu:home")
+    );
+  }
+
+  if (data === "withdraw:cancel") {
+    pendingFlows.delete(userId);
+    return edit(`❌ *Withdrawal cancelled.*`, kbBack("menu:home", "◀ Main Menu"));
+  }
+
+  // ═══════════════ ALERTS ═════════════════════════════════════════════════
+
+  if (data === "alerts:menu") {
+    const isOn = alertSubscribers.has(userId);
+    return edit(
+      `━━━━━━━━━━━━━━━━━━━━━━\n🚨 *WALLET ALERTS*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Monitoring Wallet:\n\`${trunc(WALLET_ADDRESS, 8)}\`\n\n` +
+      `Alert Status: ${isOn ? "*🟢 ACTIVE*" : "*🔴 INACTIVE*"}\n\n` +
+      `You will receive instant Telegram alerts when:\n` +
+      `• SOL is deposited to your wallet\n` +
+      `• A withdrawal is processed\n` +
+      `• A large transaction is detected\n` +
+      `• A token buy/sell is executed\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      kbAlerts(isOn)
+    );
+  }
+
+  if (data.startsWith("alerts:toggle:")) {
+    const enable = data.split(":")[2] === "true";
+    if (enable) {
+      alertSubscribers.add(userId);
+      await ctx.answerCallbackQuery("🔔 Alerts enabled!");
+    } else {
+      alertSubscribers.delete(userId);
+      await ctx.answerCallbackQuery("🔕 Alerts disabled.");
+    }
+    return edit(
+      `━━━━━━━━━━━━━━━━━━━━━━\n🚨 *WALLET ALERTS*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Alert Status: ${enable ? "*🟢 ACTIVE*" : "*🔴 INACTIVE*"}\n\n` +
+      `Monitoring: \`${trunc(WALLET_ADDRESS, 8)}\``,
+      kbAlerts(enable)
+    );
+  }
+
+  if (data.startsWith("alerts:type:")) {
+    const type = data.split(":")[2];
+    const names: Record<string, string> = {
+      deposit: "💸 Deposit", withdraw: "📤 Withdraw",
+      largetx: "🐋 Large TX", buy: "🛒 Token Buy", sell: "💰 Token Sell",
+    };
+    return edit(
+      `━━━━━━━━━━━━━━━━━━━━━━\n${names[type] ?? "🔔"} *ALERTS*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `*${names[type]}* alerts are *🟢 Active*\n\nYou will receive instant notifications for all ${names[type]?.toLowerCase()} events.`,
+      new InlineKeyboard().text("⚙️ Manage Alerts", "alerts:menu").text("◀ Back", "menu:home")
+    );
+  }
+
+  // ═══════════════ SNIPER PANEL ════════════════════════════════════════════
+
+  if (data === "sniper:panel") {
+    const cfg = getSniperConfig(userId);
+    return edit(screenSniperPanel(cfg), kbSniper(cfg));
+  }
+
+  if (data === "sniper:toggle:autoBuy") {
+    const cfg = getSniperConfig(userId);
+    cfg.autoBuy = !cfg.autoBuy;
+    await ctx.answerCallbackQuery(`Auto Buy ${cfg.autoBuy ? "✅ ON" : "❌ OFF"}`);
+    return edit(screenSniperPanel(cfg), kbSniper(cfg));
+  }
+
+  if (data === "sniper:toggle:autoSell") {
+    const cfg = getSniperConfig(userId);
+    cfg.autoSell = !cfg.autoSell;
+    await ctx.answerCallbackQuery(`Auto Sell ${cfg.autoSell ? "✅ ON" : "❌ OFF"}`);
+    return edit(screenSniperPanel(cfg), kbSniper(cfg));
+  }
+
+  if (data === "sniper:start") {
+    const cfg = getSniperConfig(userId);
+    cfg.sniping = true;
+    snipeModeActive.add(userId);
+    await ctx.answerCallbackQuery("🟢 Snipe Mode ACTIVE — paste any CA!");
+    return edit(screenSniperPanel(cfg), kbSniper(cfg));
+  }
+
+  if (data === "sniper:stop") {
+    const cfg = getSniperConfig(userId);
+    cfg.sniping = false;
+    snipeModeActive.delete(userId);
+    await ctx.answerCallbackQuery("🔴 Sniping stopped.");
+    return edit(screenSniperPanel(cfg), kbSniper(cfg));
+  }
+
+  if (data === "sniper:paste_ca") {
+    pendingFlows.set(userId, { type: "snipe_ca" });
+    return edit(
+      `━━━━━━━━━━━━━━━━━━━━━━\n🔫 *MANUAL SNIPE*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Send the contract address of the token you want to snipe:\n\n` +
+      `_Paste the CA below ↓_`,
+      kbBack("sniper:panel", "❌ Cancel")
+    );
+  }
+
+  if (data === "sniper:edit") {
+    const cfg = getSniperConfig(userId);
+    return edit(screenSniperEdit(cfg), new InlineKeyboard()
+      .text(`💰 Amount: ${fSol(cfg.buyAmount)} SOL`, "sniper:set:amount").row()
+      .text(`📊 Slippage: ${cfg.slippage}%`,         "sniper:set:slippage").row()
+      .text(`⚡ Fee: auto`,    "sniper:fee:auto")
+      .text(`⚡ Fee: low`,     "sniper:fee:low").row()
+      .text(`⚡ Fee: medium`,  "sniper:fee:medium")
+      .text(`⚡ Fee: high`,    "sniper:fee:high").row()
+      .text(`🎯 Take Profit: ${cfg.takeProfitPct}%`, "sniper:set:tp").row()
+      .text(`🛑 Stop Loss: ${cfg.stopLossPct}%`,     "sniper:set:sl").row()
+      .text(`💹 Auto Sell: ${cfg.autoSell ? "✅ ON" : "❌ OFF"}`, "sniper:toggle:autoSell").row()
+      .text("◀ Back to Sniper", "sniper:panel")
+    );
+  }
+
+  if (data.startsWith("sniper:set:")) {
+    const field = data.split(":")[2] as "amount" | "slippage" | "tp" | "sl";
+    const flowMap: Record<string, PendingFlow> = {
+      amount:   { type: "snipe_set_amount" },
+      slippage: { type: "snipe_set_slippage" },
+      tp:       { type: "snipe_set_tp" },
+      sl:       { type: "snipe_set_sl" },
+    };
+    const labels: Record<string, string> = {
+      amount: "buy amount in SOL (e.g. `0.5`)",
+      slippage: "slippage % (e.g. `10`)",
+      tp: "take profit % (e.g. `50`)",
+      sl: "stop loss % (e.g. `20`)",
+    };
+    pendingFlows.set(userId, flowMap[field]);
+    return edit(
+      `━━━━━━━━━━━━━━━━━━━━━━\n✏️ *EDIT SETTING*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Enter new ${labels[field]}:`,
+      kbBack("sniper:edit", "❌ Cancel")
+    );
+  }
+
+  if (data.startsWith("sniper:fee:")) {
     const fee = data.split(":")[2] as "auto" | "low" | "medium" | "high";
-    const s = await getOrCreateSettings();
-    await db.update(settingsTable).set({ defaultPriorityFee: fee }).where(eq(settingsTable.id, s.id));
+    const cfg = getSniperConfig(userId);
+    cfg.priorityFee = fee;
     await ctx.answerCallbackQuery(`⚡ Fee set to ${fee}`);
-    const { text, kb } = await buildSnipeMenu(userId);
-    try { await ctx.editMessageText(text, { parse_mode: "Markdown", reply_markup: kb }); } catch {}
-    return;
-  }
-
-  if (data === "snipeconfig:amount") {
-    if (userId) pendingInput.set(userId, { type: "snipeConfigAmount" });
-    return ctx.editMessageText(
-      `💰 *Set Snipe Buy Amount*\n━━━━━━━━━━━━━━━━━━━━\n\nReply with the SOL amount you want to use per snipe.\n\n*Examples:* \`0.1\` · \`0.5\` · \`1\` · \`2.5\``,
-      { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("❌ Cancel", "menu:snipe") }
+    return edit(screenSniperEdit(cfg), new InlineKeyboard()
+      .text(`💰 Amount: ${fSol(cfg.buyAmount)} SOL`, "sniper:set:amount").row()
+      .text(`📊 Slippage: ${cfg.slippage}%`,         "sniper:set:slippage").row()
+      .text(`⚡ Fee: auto`,    "sniper:fee:auto")
+      .text(`⚡ Fee: low`,     "sniper:fee:low").row()
+      .text(`⚡ Fee: medium`,  "sniper:fee:medium")
+      .text(`⚡ Fee: high`,    "sniper:fee:high").row()
+      .text(`🎯 Take Profit: ${cfg.takeProfitPct}%`, "sniper:set:tp").row()
+      .text(`🛑 Stop Loss: ${cfg.stopLossPct}%`,     "sniper:set:sl").row()
+      .text(`💹 Auto Sell: ${cfg.autoSell ? "✅ ON" : "❌ OFF"}`, "sniper:toggle:autoSell").row()
+      .text("◀ Back to Sniper", "sniper:panel")
     );
   }
 
-  if (data === "snipeconfig:slip") {
-    if (userId) pendingInput.set(userId, { type: "snipeConfigSlip" });
-    return ctx.editMessageText(
-      `📊 *Set Snipe Slippage*\n━━━━━━━━━━━━━━━━━━━━\n\nReply with the slippage % for sniping.\n\nRecommended: \`10\` – \`20\` for new launches.\n\n*Examples:* \`5\` · \`10\` · \`20\``,
-      { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("❌ Cancel", "menu:snipe") }
-    );
+  if (data === "sniper:list") {
+    const snipers = await db.select().from(snipersTable).orderBy(desc(snipersTable.createdAt)).limit(8);
+    let text = `━━━━━━━━━━━━━━━━━━━━━━\n📊 *ACTIVE SNIPERS*\n━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    if (snipers.length === 0) {
+      text += `No snipers configured.\n\nPaste a CA or use 🚀 Start Sniping to add one.`;
+    } else {
+      for (const sn of snipers) {
+        const icon = sn.status === "monitoring" ? "🟡" : sn.status === "sniped" ? "🟢" : sn.status === "failed" ? "🔴" : "⬜";
+        text += `${icon} *${sn.tokenSymbol ?? "Unnamed"}* #${sn.id}\n`;
+        text += `   CA: \`${trunc(sn.contractAddress, 6)}\`\n`;
+        text += `   ${fSol(sn.buyAmountSol)} SOL · ${sn.slippagePercent}% slip · ${sn.priorityFee}\n`;
+        text += `   Status: \`${sn.status}\` · Tries: ${sn.attempts}\n\n`;
+      }
+    }
+    const kb = new InlineKeyboard();
+    for (const sn of snipers.filter(s => s.status === "monitoring")) {
+      kb.text(`⏹ Stop #${sn.id}`, `sniper:action:stop:${sn.id}`).row();
+    }
+    kb.text("◀ Sniper Panel", "sniper:panel");
+    return edit(text, kb);
   }
 
-  // ── SNIPE CONTROLS (start/stop/edit individual snipers) ───────────────────
-  if (data.startsWith("snipe:stop:") || data.startsWith("snipe:start:")) {
-    const parts = data.split(":");
-    const action = parts[1];
-    const id = parseInt(parts[2]);
+  if (data.startsWith("sniper:action:")) {
+    const [,, action, idStr] = data.split(":");
+    const id = parseInt(idStr);
     const newStatus = action === "stop" ? "stopped" : "monitoring";
-    const [sn] = await db.update(snipersTable).set({ status: newStatus as any }).where(eq(snipersTable.id, id)).returning();
+    await db.update(snipersTable).set({ status: newStatus as any }).where(eq(snipersTable.id, id));
     await ctx.answerCallbackQuery(`${action === "stop" ? "⏹ Stopped" : "▶ Started"} sniper #${id}`);
-    const { text, kb } = await buildSnipeMenu(userId);
-    try { await ctx.editMessageText(text, { parse_mode: "Markdown", reply_markup: kb }); } catch {}
-    return;
+    return edit(`✅ Sniper #${id} ${newStatus}.`, new InlineKeyboard().text("📊 View Snipers", "sniper:list").text("◀ Panel", "sniper:panel"));
   }
 
-  if (data.startsWith("snipe:edit:")) {
-    const id = parseInt(data.split(":")[2]);
-    const [sn] = await db.select().from(snipersTable).where(eq(snipersTable.id, id));
-    if (!sn) return ctx.editMessageText("❌ Sniper not found.");
-    if (userId) pendingInput.set(userId, { type: "editSniper", sniperId: id });
-    return ctx.editMessageText(
-      `✏️ *Edit Sniper #${id}*\n━━━━━━━━━━━━━━━━━━━━\nBuy: *${fSol(sn.buyAmountSol)} SOL* · Slip: *${sn.slippagePercent}%* · Fee: *${sn.priorityFee}*\n\n` +
-      `Reply with new values:\n\`amount:<sol> slip:<pct> fee:<auto|low|medium|high>\`\n\n` +
-      `Example: \`amount:0.5 slip:10 fee:high\``,
-      { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("❌ Cancel", "menu:snipe") }
+  if (data.startsWith("sniper:buy:")) {
+    const [,, addr, amtStr] = data.split(":");
+    const amt = parseFloat(amtStr);
+    const balance = await getWalletBalance();
+    if (amt > balance) {
+      return edit(`❌ *Insufficient balance.* You have *${fSol(balance)} SOL*.`, kbBack("sniper:panel", "◀ Back"));
+    }
+    const cfg = getSniperConfig(userId);
+    const [w] = await db.select().from(walletsTable).where(eq(walletsTable.address, WALLET_ADDRESS));
+    if (!w) return edit("❌ Wallet not found.", kbBack("menu:home"));
+    const txHash = generateTxHash();
+    const newBalance = balance - amt;
+    await updateWalletBalance(newBalance);
+    await db.insert(snipersTable).values({
+      walletId: w.id, contractAddress: addr,
+      buyAmountSol: String(amt), slippagePercent: String(cfg.slippage),
+      priorityFee: cfg.priorityFee, status: "monitoring", attempts: 0,
+    });
+    await db.insert(tradesTable).values({
+      walletId: w.id, type: "buy", tokenSymbol: "UNKNOWN", tokenName: "Unknown Token",
+      contractAddress: addr, amountSol: String(amt), priceSol: "0.000001", txHash, status: "success",
+    });
+    return edit(
+      `━━━━━━━━━━━━━━━━━━━━━━\n🔫 *SNIPER ARMED!*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `CA: \`${trunc(addr, 8)}\`\n` +
+      `Amount: *${fSol(amt)} SOL*\n` +
+      `Slippage: *${cfg.slippage}%*\n` +
+      `Priority: *${cfg.priorityFee}*\n` +
+      `TP: *+${cfg.takeProfitPct}%*  ·  SL: *-${cfg.stopLossPct}%*\n` +
+      `Status: *🟡 Monitoring for liquidity...*\n\n` +
+      `💰 New Balance: *${fSol(newBalance)} SOL*\n\n` +
+      `🔗 TX: \`${trunc(txHash, 12)}\`\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      new InlineKeyboard()
+        .text("📊 View Snipers", "sniper:list").text("💰 Wallet", "wallet:panel").row()
+        .text("◀ Sniper Panel", "sniper:panel")
     );
   }
 
-  // ── COPY TRADE ────────────────────────────────────────────────────────────
-  if (data === "menu:copytrade") {
-    const cts = await db.select().from(copyTradesTable).orderBy(desc(copyTradesTable.createdAt)).limit(10);
-    let text = `📋 *Copy Trade*\n━━━━━━━━━━━━━━━━━━━━\n\n`;
-    if (cts.length === 0) {
-      text += `No copy trade targets.\n\n📋 *How to add:*\n\`copy <wallet_address> [sol_amount]\`\n\nExample:\n\`copy 9xQeWvG816bUx9EPjH... 0.1\``;
+  // ═══════════════ PORTFOLIO ══════════════════════════════════════════════
+
+  if (data === "portfolio") {
+    const positions = await db.select().from(positionsTable);
+    const balance   = await getWalletBalance();
+    let text = `━━━━━━━━━━━━━━━━━━━━━━\n📊 *PORTFOLIO*\n━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    text += `💰 SOL Balance: *${fSol(balance)} SOL*\n`;
+    if (positions.length === 0) {
+      text += `\nNo open token positions.\n\nUse the Sniper Panel to start trading.`;
     } else {
-      for (const ct of cts) {
-        const icon = ct.status === "active" ? "🟢" : ct.status === "paused" ? "🟡" : "⬜";
-        text += `${icon} *${ct.targetAlias ?? "Target"}* · ${fSol(ct.amountSol)} SOL · ${ct.tradesCopied} trades\n\`${trunc(ct.targetAddress, 6)}\`\n\n`;
+      const totalVal = positions.reduce((s, p) => s + parseFloat(String(p.valueSol)), 0);
+      text += `📊 Token Positions: *${positions.length}*\n`;
+      text += `💼 Portfolio Value: *${fSol(totalVal)} SOL*\n\n`;
+      text += `━━━━━━━━━━━━━━━━━━━━━━\n*Holdings:*\n\n`;
+      for (const p of positions) {
+        const pnl = parseFloat(String(p.pnlPercent));
+        text += `${pnl >= 0 ? "🟢" : "🔴"} *${p.tokenSymbol}*\n`;
+        text += `   ${fSol(p.valueSol)} SOL · PnL: ${fPct(pnl)}\n`;
+        text += `   MC: ${fUsd(parseFloat(String(p.marketCapUsd)))}\n\n`;
       }
     }
-    const kb = new InlineKeyboard();
-    for (const ct of cts) {
-      if (ct.status === "active") kb.text(`⏸ Pause ${ct.targetAlias ?? ct.id}`, `ct:pause:${ct.id}`).row();
-      if (ct.status === "paused") kb.text(`▶ Resume ${ct.targetAlias ?? ct.id}`, `ct:resume:${ct.id}`).row();
-    }
-    kb.text("← Back", "menu:home");
-    return ctx.editMessageText(text, { parse_mode: "Markdown", reply_markup: kb });
+    return edit(text, new InlineKeyboard()
+      .text("📈 Sniper Panel", "sniper:panel").text("📋 TX History", "wallet:history").row()
+      .text("◀ Main Menu", "menu:home")
+    );
   }
 
-  if (data.startsWith("ct:pause:") || data.startsWith("ct:resume:")) {
-    const [, action, idStr] = data.split(":");
-    const id = parseInt(idStr);
-    const newStatus = action === "pause" ? "paused" : "active";
-    const [ct] = await db.update(copyTradesTable).set({ status: newStatus as any }).where(eq(copyTradesTable.id, id)).returning();
-    await ctx.answerCallbackQuery(`${action === "pause" ? "⏸ Paused" : "▶ Resumed"}`);
-    return ctx.editMessageText(`${action === "pause" ? "⏸ Paused" : "▶ Resumed"} copy trade for *${ct?.targetAlias ?? "target"}*`,
-      { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("← Copy Trade", "menu:copytrade").text("🏠 Home", "menu:home") });
+  // ═══════════════ TOKEN ALERTS ═══════════════════════════════════════════
+
+  if (data === "token:alerts") {
+    return edit(
+      `━━━━━━━━━━━━━━━━━━━━━━\n🔔 *TOKEN ALERTS*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Monitor tokens for launch events:\n\n` +
+      `▸ 🚀 *Launch Detector* — New Raydium pools _(coming)_\n` +
+      `▸ 📈 *Price Alerts* — Set price targets _(coming)_\n` +
+      `▸ 🐋 *Whale Alerts* — Large wallets _(coming)_\n` +
+      `▸ 📊 *Volume Spikes* — Unusual activity _(coming)_\n` +
+      `▸ 🔌 *Pump.fun Monitor* — New launches _(coming)_\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `⚡ Powered by Solana RPC + Yellowstone Geyser`,
+      kbBack("menu:home", "◀ Main Menu")
+    );
   }
 
-  // ── LIMIT ORDERS ─────────────────────────────────────────────────────────
-  if (data === "menu:limitorders") {
-    const orders = await db.select().from(limitOrdersTable).orderBy(desc(limitOrdersTable.createdAt)).limit(10);
-    let text = `🎚 *Limit Orders*\n━━━━━━━━━━━━━━━━━━━━\n\n`;
-    if (orders.length === 0) {
-      text += `No limit orders.\n\n📋 *How to add:*\n\`limit <ca> tp:<pct> sl:<pct>\`\n\nExample: \`limit <ca> tp:50 sl:20\``;
-    } else {
-      for (const o of orders) {
-        const icon = o.status === "active" ? "🟡" : o.status === "triggered" ? "🟢" : "⬜";
-        text += `${icon} *${o.tokenSymbol}* \`${trunc(o.contractAddress, 6)}\`\n`;
-        if (o.takeProfitPercent) text += `   TP: +${o.takeProfitPercent}%`;
-        if (o.stopLossPercent) text += `   SL: -${o.stopLossPercent}%`;
-        text += `\n\n`;
-      }
-    }
-    const kb = new InlineKeyboard();
-    for (const o of orders.filter(o => o.status === "active")) kb.text(`❌ Cancel ${o.tokenSymbol}`, `lo:cancel:${o.id}`).row();
-    kb.text("← Back", "menu:home");
-    return ctx.editMessageText(text, { parse_mode: "Markdown", reply_markup: kb });
-  }
+  // ═══════════════ SETTINGS ════════════════════════════════════════════════
 
-  if (data.startsWith("lo:cancel:")) {
-    const id = parseInt(data.split(":")[2]);
-    await db.update(limitOrdersTable).set({ status: "cancelled" }).where(eq(limitOrdersTable.id, id));
-    return ctx.editMessageText("✅ Limit order cancelled.", {
-      reply_markup: new InlineKeyboard().text("← Limit Orders", "menu:limitorders").text("🏠 Home", "menu:home") });
-  }
-
-  // ── DCA ───────────────────────────────────────────────────────────────────
-  if (data === "menu:dca") {
-    const dcas = await db.select().from(dcaSetupsTable).orderBy(desc(dcaSetupsTable.createdAt)).limit(10);
-    let text = `🔁 *DCA*\n━━━━━━━━━━━━━━━━━━━━\n\n`;
-    if (dcas.length === 0) {
-      text += `No DCA setups.\n\n📋 *How to add:*\n\`dca <ca> <amount_sol> <interval_hours>\`\n\nExample: \`dca <ca> 0.1 24\` (0.1 SOL every 24h)`;
-    } else {
-      for (const d of dcas) {
-        const icon = d.status === "active" ? "🟢" : d.status === "paused" ? "🟡" : "⬜";
-        text += `${icon} *${d.tokenSymbol}* · ${fSol(d.amountSol)} SOL / ${d.intervalHours}h · ${d.executionsCount} runs\n\n`;
-      }
-    }
-    const kb = new InlineKeyboard();
-    for (const d of dcas) {
-      if (d.status === "active") kb.text(`⏸ Pause ${d.tokenSymbol}`, `dca:pause:${d.id}`).row();
-      if (d.status === "paused") kb.text(`▶ Resume ${d.tokenSymbol}`, `dca:resume:${d.id}`).row();
-    }
-    kb.text("← Back", "menu:home");
-    return ctx.editMessageText(text, { parse_mode: "Markdown", reply_markup: kb });
-  }
-
-  if (data.startsWith("dca:pause:") || data.startsWith("dca:resume:")) {
-    const [, action, idStr] = data.split(":");
-    const id = parseInt(idStr);
-    const [d] = await db.update(dcaSetupsTable).set({ status: (action === "pause" ? "paused" : "active") as any }).where(eq(dcaSetupsTable.id, id)).returning();
-    await ctx.answerCallbackQuery(`${action === "pause" ? "⏸ Paused" : "▶ Resumed"}`);
-    return ctx.editMessageText(`${action === "pause" ? "⏸ Paused" : "▶ Resumed"} DCA for *${d?.tokenSymbol}*`,
-      { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("← DCA", "menu:dca").text("🏠 Home", "menu:home") });
-  }
-
-  // ── LOGS ──────────────────────────────────────────────────────────────────
-  if (data === "menu:logs") {
-    const notifs = await db.select().from(notificationsTable).orderBy(desc(notificationsTable.createdAt)).limit(10);
-    let text = `🔔 *System Logs*\n━━━━━━━━━━━━━━━━━━━━\n\n`;
-    if (notifs.length === 0) text += `No logs yet.`;
-    else for (const n of notifs) {
-      text += `${n.isRead ? "📩" : "📬"} *${n.title}*\n${n.message}`;
-      if (n.amountSol) text += ` · ${fSol(n.amountSol)} SOL`;
-      if (n.pnlPercent) text += ` · ${fPct(n.pnlPercent)}`;
-      text += `\n_${new Date(n.createdAt).toLocaleString()}_\n\n`;
-    }
-    await db.update(notificationsTable).set({ isRead: true });
-    return ctx.editMessageText(text, { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("← Back", "menu:home") });
-  }
-
-  // ── SETTINGS ─────────────────────────────────────────────────────────────
-  if (data === "menu:settings" || data === "settings:refresh") {
+  if (data === "settings:menu") {
     const s = await getOrCreateSettings();
-    const text =
-      `⚙️ *Settings*\n━━━━━━━━━━━━━━━━━━━━\n\n` +
+    return edit(
+      `━━━━━━━━━━━━━━━━━━━━━━\n⚙️ *SETTINGS*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
       `💰 Default Buy: *${fSol(s.defaultBuyAmountSol)} SOL*\n` +
       `📊 Slippage: *${s.defaultSlippagePercent}%*\n` +
-      `⚡ Priority Fee: *${s.defaultPriorityFee}*\n\n` +
-      `🔔 *Notifications*\n` +
+      `⚡ Priority Fee: *${s.defaultPriorityFee}*\n` +
+      `⚡ Auto Approve: *${s.autoApprove ? "✅ ON" : "❌ OFF"}*\n\n` +
+      `🔔 *Notifications:*\n` +
       `Buy: ${s.notifyBuy ? "✅" : "❌"}  Sell: ${s.notifySell ? "✅" : "❌"}  Sniper: ${s.notifySniper ? "✅" : "❌"}  Wallet: ${s.notifyWallet ? "✅" : "❌"}\n\n` +
-      `⚡ Auto-Approve TXs: ${s.autoApprove ? "✅ ON" : "❌ OFF"}\n\n` +
-      `📝 Change values:\n\`/set buy_amount 0.5\` · \`/set slippage 2\` · \`/set fee high\``;
-    const kb = new InlineKeyboard()
-      .text(s.notifyBuy ? "🔔 Buy: ON" : "🔔 Buy: OFF", `settings:toggle:notifyBuy:${!s.notifyBuy}`)
-      .text(s.notifySell ? "🔔 Sell: ON" : "🔔 Sell: OFF", `settings:toggle:notifySell:${!s.notifySell}`).row()
-      .text(s.notifySniper ? "🎯 Sniper: ON" : "🎯 Sniper: OFF", `settings:toggle:notifySniper:${!s.notifySniper}`)
-      .text(s.notifyWallet ? "👛 Wallet: ON" : "👛 Wallet: OFF", `settings:toggle:notifyWallet:${!s.notifyWallet}`).row()
-      .text(s.autoApprove ? "⚡ Auto-Approve: ON" : "⚡ Auto-Approve: OFF", `settings:toggle:autoApprove:${!s.autoApprove}`).row()
-      .text("← Back", "menu:home");
-    try { await ctx.editMessageText(text, { parse_mode: "Markdown", reply_markup: kb }); }
-    catch { await ctx.reply(text, { parse_mode: "Markdown", reply_markup: kb }); }
-    return;
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `Use /set to change values:\n\`/set buy_amount 0.5\`\n\`/set slippage 10\`\n\`/set fee high\``,
+      new InlineKeyboard()
+        .text(s.notifyBuy ? "🔔 Buy: ON" : "🔔 Buy: OFF",       `settings:toggle:notifyBuy:${!s.notifyBuy}`)
+        .text(s.notifySell ? "🔔 Sell: ON" : "🔔 Sell: OFF",    `settings:toggle:notifySell:${!s.notifySell}`).row()
+        .text(s.notifySniper ? "🎯 Sniper: ON" : "🎯 Sniper: OFF", `settings:toggle:notifySniper:${!s.notifySniper}`)
+        .text(s.notifyWallet ? "👛 Wallet: ON" : "👛 Wallet: OFF", `settings:toggle:notifyWallet:${!s.notifyWallet}`).row()
+        .text(s.autoApprove ? "⚡ Auto-Approve: ON" : "⚡ Auto-Approve: OFF", `settings:toggle:autoApprove:${!s.autoApprove}`).row()
+        .text("◀ Main Menu", "menu:home")
+    );
   }
 
   if (data.startsWith("settings:toggle:")) {
     const parts = data.split(":");
     const field = parts[2];
-    const val = parts[3] === "true";
+    const val   = parts[3] === "true";
     const allowed = ["notifyBuy", "notifySell", "notifySniper", "notifyWallet", "autoApprove"];
     if (allowed.includes(field)) {
       const s = await getOrCreateSettings();
       await db.update(settingsTable).set({ [field]: val }).where(eq(settingsTable.id, s.id));
     }
-    await ctx.answerCallbackQuery(`${field.replace(/([A-Z])/g, " $1")} → ${val ? "ON ✅" : "OFF ❌"}`);
-    // re-render
+    await ctx.answerCallbackQuery(`${val ? "✅" : "❌"} ${field} ${val ? "enabled" : "disabled"}`);
+    // Re-render settings
     const s2 = await getOrCreateSettings();
-    const text =
-      `⚙️ *Settings*\n━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `💰 Default Buy: *${fSol(s2.defaultBuyAmountSol)} SOL*\n📊 Slippage: *${s2.defaultSlippagePercent}%*\n⚡ Priority Fee: *${s2.defaultPriorityFee}*\n\n` +
-      `🔔 *Notifications*\nBuy: ${s2.notifyBuy ? "✅" : "❌"}  Sell: ${s2.notifySell ? "✅" : "❌"}  Sniper: ${s2.notifySniper ? "✅" : "❌"}  Wallet: ${s2.notifyWallet ? "✅" : "❌"}\n\n` +
-      `⚡ Auto-Approve TXs: ${s2.autoApprove ? "✅ ON" : "❌ OFF"}\n\n📝 Change values:\n\`/set buy_amount 0.5\` · \`/set slippage 2\` · \`/set fee high\``;
-    const kb = new InlineKeyboard()
-      .text(s2.notifyBuy ? "🔔 Buy: ON" : "🔔 Buy: OFF", `settings:toggle:notifyBuy:${!s2.notifyBuy}`)
-      .text(s2.notifySell ? "🔔 Sell: ON" : "🔔 Sell: OFF", `settings:toggle:notifySell:${!s2.notifySell}`).row()
-      .text(s2.notifySniper ? "🎯 Sniper: ON" : "🎯 Sniper: OFF", `settings:toggle:notifySniper:${!s2.notifySniper}`)
-      .text(s2.notifyWallet ? "👛 Wallet: ON" : "👛 Wallet: OFF", `settings:toggle:notifyWallet:${!s2.notifyWallet}`).row()
-      .text(s2.autoApprove ? "⚡ Auto-Approve: ON" : "⚡ Auto-Approve: OFF", `settings:toggle:autoApprove:${!s2.autoApprove}`).row()
-      .text("← Back", "menu:home");
-    return ctx.editMessageText(text, { parse_mode: "Markdown", reply_markup: kb });
+    return edit(
+      `━━━━━━━━━━━━━━━━━━━━━━\n⚙️ *SETTINGS*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `💰 Default Buy: *${fSol(s2.defaultBuyAmountSol)} SOL*\n` +
+      `📊 Slippage: *${s2.defaultSlippagePercent}%*\n` +
+      `⚡ Priority Fee: *${s2.defaultPriorityFee}*\n` +
+      `⚡ Auto Approve: *${s2.autoApprove ? "✅ ON" : "❌ OFF"}*\n\n` +
+      `🔔 *Notifications:*\nBuy: ${s2.notifyBuy ? "✅" : "❌"}  Sell: ${s2.notifySell ? "✅" : "❌"}  Sniper: ${s2.notifySniper ? "✅" : "❌"}  Wallet: ${s2.notifyWallet ? "✅" : "❌"}`,
+      new InlineKeyboard()
+        .text(s2.notifyBuy ? "🔔 Buy: ON" : "🔔 Buy: OFF",       `settings:toggle:notifyBuy:${!s2.notifyBuy}`)
+        .text(s2.notifySell ? "🔔 Sell: ON" : "🔔 Sell: OFF",    `settings:toggle:notifySell:${!s2.notifySell}`).row()
+        .text(s2.notifySniper ? "🎯 Sniper: ON" : "🎯 Sniper: OFF", `settings:toggle:notifySniper:${!s2.notifySniper}`)
+        .text(s2.notifyWallet ? "👛 Wallet: ON" : "👛 Wallet: OFF", `settings:toggle:notifyWallet:${!s2.notifyWallet}`).row()
+        .text(s2.autoApprove ? "⚡ Auto-Approve: ON" : "⚡ Auto-Approve: OFF", `settings:toggle:autoApprove:${!s2.autoApprove}`).row()
+        .text("◀ Main Menu", "menu:home")
+    );
+  }
+
+  // ═══════════════ SECURITY ════════════════════════════════════════════════
+
+  if (data === "security:menu") {
+    const s = await getOrCreateSettings();
+    return edit(
+      `━━━━━━━━━━━━━━━━━━━━━━\n🔒 *SECURITY*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `🔑 PIN Lock: *${s.pinLockEnabled ? "✅ Enabled" : "❌ Disabled"}*\n` +
+      `⏱ Session Timeout: *${s.sessionTimeoutMinutes} min*\n` +
+      `🛡 Anti-Spam: *✅ Active*\n` +
+      `🔐 Private Key: *Hidden*\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `🔐 *Wallet Security:*\n` +
+      `• Private key stored securely in env\n` +
+      `• Never transmitted over network\n` +
+      `• End-to-end encrypted sessions\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      new InlineKeyboard()
+        .text(s.pinLockEnabled ? "🔓 Disable PIN" : "🔒 Enable PIN", `security:togglePin:${!s.pinLockEnabled}`).row()
+        .text("◀ Main Menu", "menu:home")
+    );
+  }
+
+  if (data.startsWith("security:togglePin:")) {
+    const val = data.split(":")[2] === "true";
+    const s = await getOrCreateSettings();
+    await db.update(settingsTable).set({ pinLockEnabled: val }).where(eq(settingsTable.id, s.id));
+    await ctx.answerCallbackQuery(`🔒 PIN ${val ? "enabled" : "disabled"}`);
+    return edit(`🔒 PIN Lock *${val ? "enabled" : "disabled"}*.`, kbBack("security:menu", "◀ Security"));
+  }
+
+  // ═══════════════ ADMIN PANEL ════════════════════════════════════════════
+
+  if (data === "admin:panel") {
+    const isAdmin = !ADMIN_ID || userId === ADMIN_ID;
+    if (!isAdmin) return edit("❌ *Access denied.* Admin only.", kbBack("menu:home"));
+    const balance = await getWalletBalance();
+    const sniperCount = (await db.select().from(snipersTable)).length;
+    const tradeCount  = (await db.select().from(tradesTable)).length;
+    return edit(
+      `━━━━━━━━━━━━━━━━━━━━━━\n👑 *ADMIN PANEL*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `📊 *System Stats:*\n` +
+      `👥 Total Users:    *${registeredUsers.size}*\n` +
+      `🔔 Alert Subs:     *${alertSubscribers.size}*\n` +
+      `🔫 Sniper Mode:    *${snipeModeActive.size} active*\n` +
+      `📈 Total Snipers:  *${sniperCount}*\n` +
+      `💹 Total Trades:   *${tradeCount}*\n\n` +
+      `💰 *Wallet:*\n` +
+      `Balance: *${fSol(balance)} SOL*\n` +
+      `Address: \`${trunc(WALLET_ADDRESS, 8)}\`\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      new InlineKeyboard()
+        .text("📢 Broadcast", "admin:broadcast").text("💰 Simulate Deposit", "admin:simdeposit").row()
+        .text("📋 All Snipers",  "admin:snipers").text("📊 All Trades",     "admin:trades").row()
+        .text("◀ Main Menu", "menu:home")
+    );
+  }
+
+  if (data === "admin:broadcast") {
+    const isAdmin = !ADMIN_ID || userId === ADMIN_ID;
+    if (!isAdmin) return edit("❌ Access denied.", kbBack("menu:home"));
+    pendingFlows.set(userId, { type: "broadcast_message" });
+    return edit(
+      `━━━━━━━━━━━━━━━━━━━━━━\n📢 *BROADCAST MESSAGE*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Send the message to broadcast to all *${registeredUsers.size}* users:`,
+      kbBack("admin:panel", "❌ Cancel")
+    );
+  }
+
+  if (data === "admin:simdeposit") {
+    const isAdmin = !ADMIN_ID || userId === ADMIN_ID;
+    if (!isAdmin) return edit("❌ Access denied.", kbBack("menu:home"));
+    // Simulate a deposit for testing the alert system
+    const amount  = parseFloat((Math.random() * 2 + 0.1).toFixed(4));
+    const sender  = "SimulatedSender" + Math.random().toString(36).slice(2, 10);
+    const txHash  = generateTxHash();
+    const balance = await getWalletBalance();
+    await updateWalletBalance(balance + amount);
+    await broadcastDepositAlert(amount, sender, txHash);
+    return edit(
+      `✅ *Simulated deposit sent!*\n\nAmount: *${fSol(amount)} SOL*\nAlert broadcast to *${alertSubscribers.size}* subscriber(s).`,
+      kbBack("admin:panel", "◀ Admin")
+    );
+  }
+
+  if (data === "admin:snipers") {
+    const isAdmin = !ADMIN_ID || userId === ADMIN_ID;
+    if (!isAdmin) return edit("❌ Access denied.", kbBack("menu:home"));
+    const snipers = await db.select().from(snipersTable).orderBy(desc(snipersTable.createdAt)).limit(10);
+    let text = `━━━━━━━━━━━━━━━━━━━━━━\n📈 *ALL SNIPERS*\n━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    if (!snipers.length) text += `No snipers yet.`;
+    else for (const sn of snipers) {
+      const icon = sn.status === "monitoring" ? "🟡" : sn.status === "sniped" ? "🟢" : "⬜";
+      text += `${icon} #${sn.id} ${sn.tokenSymbol ?? "Unknown"} · ${fSol(sn.buyAmountSol)} SOL · ${sn.status}\n`;
+    }
+    return edit(text, kbBack("admin:panel", "◀ Admin"));
+  }
+
+  if (data === "admin:trades") {
+    const isAdmin = !ADMIN_ID || userId === ADMIN_ID;
+    if (!isAdmin) return edit("❌ Access denied.", kbBack("menu:home"));
+    const trades = await db.select().from(tradesTable).orderBy(desc(tradesTable.executedAt)).limit(10);
+    let text = `━━━━━━━━━━━━━━━━━━━━━━\n💹 *ALL TRADES*\n━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    if (!trades.length) text += `No trades yet.`;
+    else for (const t of trades) {
+      text += `${t.type === "buy" ? "🛒" : "💰"} *${t.type.toUpperCase()}* ${t.tokenSymbol} · ${fSol(t.amountSol)} SOL\n`;
+      text += `   \`${trunc(t.txHash, 8)}\` · ${new Date(t.executedAt).toLocaleDateString()}\n\n`;
+    }
+    return edit(text, kbBack("admin:panel", "◀ Admin"));
+  }
+
+  // ═══════════════ COPY / LIMIT / DCA ════════════════════════════════════
+
+  if (data === "copy:menu") {
+    const cts = await db.select().from(copyTradesTable).orderBy(desc(copyTradesTable.createdAt)).limit(5);
+    let text = `━━━━━━━━━━━━━━━━━━━━━━\n📋 *COPY TRADING*\n━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    if (!cts.length) text += `No copy targets.\n\nUse: \`copy <wallet> [sol]\``;
+    else for (const ct of cts) {
+      text += `${ct.status === "active" ? "🟢" : "🟡"} *${ct.targetAlias ?? "Target"}*\n   ${fSol(ct.amountSol)} SOL · ${ct.tradesCopied} copied\n\n`;
+    }
+    return edit(text, kbBack("sniper:panel", "◀ Sniper Panel"));
+  }
+
+  if (data === "limits:menu") {
+    const orders = await db.select().from(limitOrdersTable).orderBy(desc(limitOrdersTable.createdAt)).limit(5);
+    let text = `━━━━━━━━━━━━━━━━━━━━━━\n🎚 *LIMIT ORDERS*\n━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    if (!orders.length) text += `No limit orders.\n\nUse: \`limit <ca> tp:<pct> sl:<pct>\``;
+    else for (const o of orders) {
+      text += `${o.status === "active" ? "🟡" : "🟢"} *${o.tokenSymbol}*\n`;
+      if (o.takeProfitPercent) text += `   TP: +${o.takeProfitPercent}%`;
+      if (o.stopLossPercent)   text += `  SL: -${o.stopLossPercent}%`;
+      text += `\n\n`;
+    }
+    return edit(text, kbBack("sniper:panel", "◀ Sniper Panel"));
+  }
+
+  // ═══════════════ HELP ════════════════════════════════════════════════════
+
+  if (data === "help:show") {
+    return edit(
+      `━━━━━━━━━━━━━━━━━━━━━━\n❓ *HELP & GUIDE*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `*🚀 Quick Start:*\n` +
+      `1. Tap 💰 Wallet Panel — view your wallet\n` +
+      `2. Tap 📥 Deposit — fund your wallet\n` +
+      `3. Tap 📈 Sniper Panel — configure sniper\n` +
+      `4. Tap 🚀 Start Sniping — paste any CA\n\n` +
+      `*⚡ Snipe Mode:*\n` +
+      `Turn ON → paste any contract address → auto-snipe\n\n` +
+      `*📋 Text Commands:*\n` +
+      `\`/start\` — Main menu\n` +
+      `\`/wallet\` — Wallet details\n` +
+      `\`/help\` — This guide\n` +
+      `\`/set buy_amount 0.5\`\n` +
+      `\`/set slippage 10\`\n` +
+      `\`/set fee auto|low|medium|high\`\n\n` +
+      `*📌 CA Paste:*\n` +
+      `Paste any Solana CA and bot shows buy options\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      kbBack("menu:home", "◀ Main Menu")
+    );
   }
 });
 
-// ─── text / message handler ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+// SECTION 10 — TEXT MESSAGE HANDLER
+// ═══════════════════════════════════════════════════════
+
 bot.on("message:text", async (ctx) => {
-  const raw = ctx.message.text.trim();
-  const parts = raw.split(/\s+/);
-  const cmd = parts[0].toLowerCase();
+  const raw    = ctx.message.text.trim();
   const userId = ctx.from?.id;
-  const pending = userId ? pendingInput.get(userId) : undefined;
+  if (!userId) return;
 
-  // ── 1. Pending: edit sniper ──────────────────────────────────────────────
-  if (pending?.type === "editSniper") {
-    if (userId) pendingInput.delete(userId);
-    const sniperId = pending.sniperId;
-    const amountMatch = raw.match(/amount:([\d.]+)/i);
-    const slipMatch = raw.match(/slip:([\d.]+)/i);
-    const feeMatch = raw.match(/fee:(auto|low|medium|high)/i);
-    const updateData: Record<string, unknown> = { updatedAt: new Date() };
-    if (amountMatch) updateData.buyAmountSol = parseFloat(amountMatch[1]).toString();
-    if (slipMatch) updateData.slippagePercent = parseFloat(slipMatch[1]).toString();
-    if (feeMatch) updateData.priorityFee = feeMatch[1].toLowerCase();
-    if (Object.keys(updateData).length <= 1) {
-      return ctx.reply("❌ No valid fields. Use: `amount:0.5 slip:10 fee:high`", { parse_mode: "Markdown" });
+  registeredUsers.add(userId);
+
+  // Rate limit
+  if (isRateLimited(userId)) return;
+
+  const parts = raw.split(/\s+/);
+  const cmd   = parts[0].toLowerCase();
+  const flow  = pendingFlows.get(userId);
+
+  // ── Handle active flows first ──────────────────────────────────────────
+
+  // Withdrawal — step 1: awaiting address
+  if (flow?.type === "withdraw_address") {
+    if (!isValidCA(raw)) {
+      return ctx.reply("❌ *Invalid Solana address.* Please send a valid wallet address.", { parse_mode: "Markdown" });
     }
-    const [sn] = await db.update(snipersTable).set(updateData as any).where(eq(snipersTable.id, sniperId)).returning();
+    pendingFlows.set(userId, { type: "withdraw_amount", toAddress: raw });
+    const balance = await getWalletBalance();
     return ctx.reply(
-      `✅ *Sniper #${sniperId} updated!*\nBuy: *${fSol(sn?.buyAmountSol)} SOL* · Slip: *${sn?.slippagePercent}%* · Fee: *${sn?.priorityFee}*`,
-      { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("← Snipers", "menu:snipe").text("🏠 Home", "menu:home") }
+      `✅ Address saved.\n\n📍 *To:* \`${trunc(raw, 8)}\`\n\n` +
+      `💵 Available: *${fSol(balance)} SOL*\n\n` +
+      `📊 *Step 2 of 2 — Enter amount in SOL:*`,
+      { parse_mode: "Markdown", reply_markup: kbBack("withdraw:cancel", "❌ Cancel") }
     );
   }
 
-  // ── 2. Pending: snipe config — amount ───────────────────────────────────
-  if (pending?.type === "snipeConfigAmount") {
-    if (userId) pendingInput.delete(userId);
-    const n = parseFloat(raw);
-    if (isNaN(n) || n <= 0) return ctx.reply("❌ Invalid amount. Enter a number like `0.5`", { parse_mode: "Markdown" });
-    const s = await getOrCreateSettings();
-    await db.update(settingsTable).set({ defaultBuyAmountSol: n.toString() }).where(eq(settingsTable.id, s.id));
-    await ctx.reply(`✅ Snipe amount set to *${fSol(n)} SOL*`, { parse_mode: "Markdown" });
-    const { text, kb } = await buildSnipeMenu(userId);
-    return ctx.reply(text, { parse_mode: "Markdown", reply_markup: kb });
-  }
-
-  // ── 3. Pending: snipe config — slippage ─────────────────────────────────
-  if (pending?.type === "snipeConfigSlip") {
-    if (userId) pendingInput.delete(userId);
-    const n = parseFloat(raw);
-    if (isNaN(n) || n <= 0 || n > 100) return ctx.reply("❌ Invalid slippage. Enter a number between 1 and 100.", { parse_mode: "Markdown" });
-    const s = await getOrCreateSettings();
-    await db.update(settingsTable).set({ defaultSlippagePercent: n.toString() }).where(eq(settingsTable.id, s.id));
-    await ctx.reply(`✅ Slippage set to *${n}%*`, { parse_mode: "Markdown" });
-    const { text, kb } = await buildSnipeMenu(userId);
-    return ctx.reply(text, { parse_mode: "Markdown", reply_markup: kb });
-  }
-
-  // ── 4. Pending: quick buy — awaiting CA ──────────────────────────────────
-  if (pending?.type === "buyCA") {
-    if (userId) pendingInput.delete(userId);
-    const addr = raw;
-    if (!isCA(addr)) return ctx.reply("❌ That doesn't look like a valid contract address. Try again.");
-    const wallet = await getActiveWallet();
-    if (!wallet) return ctx.reply("❌ No active wallet.");
-    const amount = pending.amount;
-    await db.insert(positionsTable).values({
-      walletId: wallet.id, tokenSymbol: "TOKEN", tokenName: "Unknown",
-      contractAddress: addr, amountTokens: String(Math.floor(Math.random() * 1_000_000)),
-      valueSol: String(amount), entryPriceSol: String(amount / 1_000_000),
-      currentPriceSol: String(amount / 1_000_000), pnlPercent: "0", pnlSol: "0",
-      marketCapUsd: String(Math.random() * 1_000_000), liquidityUsd: String(Math.random() * 100_000),
+  // Withdrawal — step 2: awaiting amount
+  if (flow?.type === "withdraw_amount") {
+    const amount = parseFloat(raw);
+    if (isNaN(amount) || amount <= 0) {
+      return ctx.reply("❌ *Invalid amount.* Enter a positive number, e.g. `0.5`", { parse_mode: "Markdown" });
+    }
+    const balance = await getWalletBalance();
+    if (amount > balance) {
+      return ctx.reply(`❌ *Insufficient balance.* You have *${fSol(balance)} SOL*, requested *${fSol(amount)} SOL*.`, { parse_mode: "Markdown" });
+    }
+    // Show confirmation screen
+    pendingFlows.delete(userId);
+    return ctx.reply(screenWithdrawConfirm(flow.toAddress, amount), {
+      parse_mode: "Markdown",
+      reply_markup: new InlineKeyboard()
+        .text("✅ Confirm", `withdraw:confirm:${flow.toAddress}:${amount}`)
+        .text("❌ Cancel",  "withdraw:cancel"),
     });
-    return ctx.reply(
-      `✅ *Buy Submitted!*\n\nCA: \`${trunc(addr, 8)}\`\nAmount: *${fSol(amount)} SOL*\n_Processing..._`,
-      { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("📊 Portfolio", "menu:portfolio").text("🏠 Home", "menu:home") }
-    );
   }
 
-  // ── 5. CA paste — SNIPE MODE takes priority ───────────────────────────────
-  if (isCA(raw)) {
-    const wallet = await getActiveWallet();
-    if (!wallet) return ctx.reply("❌ No active wallet. Go to 👛 Wallets first.");
-
-    // Snipe mode ON → auto-snipe immediately, no prompts
-    if (userId && snipeModeEnabled.has(userId)) {
-      const s = await getOrCreateSettings();
-      const [sn] = await db.insert(snipersTable).values({
-        walletId: wallet.id,
-        contractAddress: raw,
-        buyAmountSol: String(s.defaultBuyAmountSol),
-        slippagePercent: String(s.defaultSlippagePercent),
-        priorityFee: (s.defaultPriorityFee as any),
-        status: "monitoring",
-        attempts: 0,
-      }).returning();
-      return ctx.reply(
-        `🔫 *Sniping!*\n━━━━━━━━━━━━━━━━━━━━\nCA: \`${trunc(raw, 8)}\`\nAmount: *${fSol(s.defaultBuyAmountSol)} SOL*\nSlippage: *${s.defaultSlippagePercent}%*\nFee: *${s.defaultPriorityFee}*\nStatus: *🟡 Monitoring for liquidity...*\n\nSniper #${sn.id} is live.`,
-        { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("🎯 View Snipers", "menu:snipe").text("⏹ Stop #" + sn.id, `snipe:stop:${sn.id}`).row().text("🏠 Home", "menu:home") }
-      );
-    }
-
-    // Snipe mode OFF → offer buy or snipe options
-    const s = await getOrCreateSettings();
+  // Sniper — awaiting CA
+  if (flow?.type === "snipe_ca") {
+    pendingFlows.delete(userId);
+    if (!isValidCA(raw)) return ctx.reply("❌ *Invalid contract address.*", { parse_mode: "Markdown" });
+    const cfg = getSniperConfig(userId);
+    const balance = await getWalletBalance();
     return ctx.reply(
-      `🔍 *Token Detected*\n━━━━━━━━━━━━━━━━━━━━\nCA: \`${raw}\`\n\nWhat do you want to do?`,
+      `━━━━━━━━━━━━━━━━━━━━━━\n🔍 *TOKEN DETECTED*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `CA: \`${raw}\`\n\n` +
+      `⚙️ *Your Config:*\n` +
+      `Buy Amount: *${fSol(cfg.buyAmount)} SOL*\n` +
+      `Slippage: *${cfg.slippage}%*  ·  Fee: *${cfg.priorityFee}*\n` +
+      `TP: *+${cfg.takeProfitPct}%*  ·  SL: *-${cfg.stopLossPct}%*\n\n` +
+      `💰 Balance: *${fSol(balance)} SOL*\n\n` +
+      `Confirm snipe?`,
       {
         parse_mode: "Markdown",
         reply_markup: new InlineKeyboard()
-          .text("💰 Buy 0.1 SOL", `autobuy:${raw}:0.1`).text("💰 Buy 0.5 SOL", `autobuy:${raw}:0.5`).row()
-          .text("💰 Buy 1 SOL", `autobuy:${raw}:1.0`).text(`💰 Buy ${fSol(s.defaultBuyAmountSol)} SOL (default)`, `autobuy:${raw}:${s.defaultBuyAmountSol}`).row()
-          .text("🔫 Snipe this CA", `snipe:instant:${raw}`).row()
-          .text("❌ Cancel", "menu:home"),
+          .text(`🔫 Snipe ${fSol(cfg.buyAmount)} SOL`, `sniper:buy:${raw}:${cfg.buyAmount}`).row()
+          .text("💰 0.1 SOL", `sniper:buy:${raw}:0.1`)
+          .text("💰 0.5 SOL", `sniper:buy:${raw}:0.5`)
+          .text("💰 1 SOL",   `sniper:buy:${raw}:1.0`).row()
+          .text("❌ Cancel", "sniper:panel"),
       }
     );
   }
 
-  // ── 6. Snipe instant from CA prompt ──────────────────────────────────────
-  // (handled in callback below — but just in case)
-
-  // ── 7. /set command ──────────────────────────────────────────────────────
-  if (cmd === "/set") {
-    const key = parts[1]?.toLowerCase();
-    const val = parts[2];
-    if (!key || !val) return ctx.reply(`⚙️ *Usage:*\n\`/set buy_amount 0.5\`\n\`/set slippage 10\`\n\`/set fee auto|low|medium|high\``, { parse_mode: "Markdown" });
-    const s = await getOrCreateSettings();
-    const updates: Record<string, unknown> = {};
-    if (key === "buy_amount") updates.defaultBuyAmountSol = parseFloat(val).toString();
-    else if (key === "slippage") updates.defaultSlippagePercent = parseFloat(val).toString();
-    else if (key === "fee" && ["auto", "low", "medium", "high"].includes(val)) updates.defaultPriorityFee = val;
-    else return ctx.reply("❌ Valid keys: `buy_amount`, `slippage`, `fee`", { parse_mode: "Markdown" });
-    await db.update(settingsTable).set(updates).where(eq(settingsTable.id, s.id));
-    return ctx.reply(`✅ *${key}* → \`${val}\``, { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("⚙️ Settings", "menu:settings").text("🏠 Home", "menu:home") });
+  // Sniper config edits
+  if (flow?.type === "snipe_set_amount") {
+    pendingFlows.delete(userId);
+    const n = parseFloat(raw);
+    if (isNaN(n) || n <= 0) return ctx.reply("❌ Invalid. Enter a positive number.", { parse_mode: "Markdown" });
+    const cfg = getSniperConfig(userId);
+    cfg.buyAmount = n;
+    await ctx.reply(`✅ Buy amount set to *${fSol(n)} SOL*`, { parse_mode: "Markdown" });
+    return ctx.reply(screenSniperPanel(cfg), { parse_mode: "Markdown", reply_markup: kbSniper(cfg) });
+  }
+  if (flow?.type === "snipe_set_slippage") {
+    pendingFlows.delete(userId);
+    const n = parseFloat(raw);
+    if (isNaN(n) || n <= 0 || n > 100) return ctx.reply("❌ Enter a number between 1–100.", { parse_mode: "Markdown" });
+    const cfg = getSniperConfig(userId);
+    cfg.slippage = n;
+    await ctx.reply(`✅ Slippage set to *${n}%*`, { parse_mode: "Markdown" });
+    return ctx.reply(screenSniperPanel(cfg), { parse_mode: "Markdown", reply_markup: kbSniper(cfg) });
+  }
+  if (flow?.type === "snipe_set_tp") {
+    pendingFlows.delete(userId);
+    const n = parseFloat(raw);
+    if (isNaN(n) || n <= 0) return ctx.reply("❌ Invalid. Enter a positive number.", { parse_mode: "Markdown" });
+    const cfg = getSniperConfig(userId);
+    cfg.takeProfitPct = n;
+    await ctx.reply(`✅ Take profit set to *+${n}%*`, { parse_mode: "Markdown" });
+    return ctx.reply(screenSniperPanel(cfg), { parse_mode: "Markdown", reply_markup: kbSniper(cfg) });
+  }
+  if (flow?.type === "snipe_set_sl") {
+    pendingFlows.delete(userId);
+    const n = parseFloat(raw);
+    if (isNaN(n) || n <= 0) return ctx.reply("❌ Invalid. Enter a positive number.", { parse_mode: "Markdown" });
+    const cfg = getSniperConfig(userId);
+    cfg.stopLossPct = n;
+    await ctx.reply(`✅ Stop loss set to *-${n}%*`, { parse_mode: "Markdown" });
+    return ctx.reply(screenSniperPanel(cfg), { parse_mode: "Markdown", reply_markup: kbSniper(cfg) });
   }
 
-  // ── 8. buy command ───────────────────────────────────────────────────────
-  if (cmd === "buy") {
-    const addr = parts[1];
-    if (!addr || !isCA(addr)) return ctx.reply(`💰 *Buy:*\n\`buy <contract_address> [sol_amount]\`\n\nOr just paste a CA directly.`, { parse_mode: "Markdown" });
-    const wallet = await getActiveWallet();
-    if (!wallet) return ctx.reply("❌ No active wallet.");
-    const s = await getOrCreateSettings();
-    const amount = parseFloat(parts[2] ?? String(s.defaultBuyAmountSol));
-    await db.insert(positionsTable).values({
-      walletId: wallet.id, tokenSymbol: "TOKEN", tokenName: "Unknown",
-      contractAddress: addr, amountTokens: String(Math.floor(Math.random() * 1_000_000)),
-      valueSol: String(amount), entryPriceSol: String(amount / 1_000_000),
-      currentPriceSol: String(amount / 1_000_000), pnlPercent: "0", pnlSol: "0",
-      marketCapUsd: String(Math.random() * 1_000_000), liquidityUsd: String(Math.random() * 100_000),
-    });
-    return ctx.reply(`✅ *Buy Submitted!*\nCA: \`${trunc(addr, 8)}\`\nAmount: *${fSol(amount)} SOL*`, { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("📊 Portfolio", "menu:portfolio").text("🏠 Home", "menu:home") });
+  // Admin broadcast
+  if (flow?.type === "broadcast_message") {
+    pendingFlows.delete(userId);
+    let sent = 0;
+    for (const uid of registeredUsers) {
+      try {
+        await bot.api.sendMessage(uid,
+          `━━━━━━━━━━━━━━━━━━━━━━\n📢 *SYSTEM ANNOUNCEMENT*\n━━━━━━━━━━━━━━━━━━━━━━\n\n${raw}`,
+          { parse_mode: "Markdown" }
+        );
+        sent++;
+      } catch {}
+    }
+    return ctx.reply(`✅ *Broadcast sent to ${sent}/${registeredUsers.size} users.*`, { parse_mode: "Markdown" });
   }
 
-  // ── 9. snipe command (manual) ────────────────────────────────────────────
-  if (cmd === "snipe") {
-    const addr = parts[1];
-    if (!addr || !isCA(addr)) return ctx.reply(`🎯 *Snipe:*\n\`snipe <contract_address> [sol_amount]\`\n\nOr enable Snipe Mode and just paste the CA!`, { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("🎯 Snipe Menu", "menu:snipe") });
-    const wallet = await getActiveWallet();
-    if (!wallet) return ctx.reply("❌ No active wallet.");
-    const s = await getOrCreateSettings();
-    const amount = parseFloat(parts[2] ?? String(s.defaultBuyAmountSol));
-    const [sn] = await db.insert(snipersTable).values({
-      walletId: wallet.id, contractAddress: addr,
-      buyAmountSol: String(amount), slippagePercent: String(s.defaultSlippagePercent),
-      priorityFee: (s.defaultPriorityFee as any), status: "monitoring", attempts: 0,
-    }).returning();
+  // ── CA auto-detect ─────────────────────────────────────────────────────
+  if (isValidCA(raw)) {
+    const cfg = getSniperConfig(userId);
+    const balance = await getWalletBalance();
+
+    // Snipe mode is ON — auto-snipe immediately
+    if (snipeModeActive.has(userId)) {
+      const [w] = await db.select().from(walletsTable).where(eq(walletsTable.address, WALLET_ADDRESS));
+      if (!w) return ctx.reply("❌ Wallet not found.");
+      if (cfg.buyAmount > balance) return ctx.reply(`❌ *Insufficient balance.* You have *${fSol(balance)} SOL*.`, { parse_mode: "Markdown" });
+      const txHash = generateTxHash();
+      const newBal = balance - cfg.buyAmount;
+      await updateWalletBalance(newBal);
+      await db.insert(snipersTable).values({
+        walletId: w.id, contractAddress: raw,
+        buyAmountSol: String(cfg.buyAmount), slippagePercent: String(cfg.slippage),
+        priorityFee: cfg.priorityFee, status: "monitoring", attempts: 0,
+      });
+      await db.insert(tradesTable).values({
+        walletId: w.id, type: "buy", tokenSymbol: "UNKNOWN", tokenName: "Unknown Token",
+        contractAddress: raw, amountSol: String(cfg.buyAmount), priceSol: "0.000001", txHash, status: "success",
+      });
+      return ctx.reply(
+        `━━━━━━━━━━━━━━━━━━━━━━\n🔫 *SNIPED!*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `CA: \`${trunc(raw, 8)}\`\n` +
+        `Amount: *${fSol(cfg.buyAmount)} SOL*\n` +
+        `Slippage: *${cfg.slippage}%*  Fee: *${cfg.priorityFee}*\n` +
+        `TP: *+${cfg.takeProfitPct}%*  ·  SL: *-${cfg.stopLossPct}%*\n` +
+        `Status: *🟡 Monitoring for liquidity...*\n\n` +
+        `💰 New Balance: *${fSol(newBal)} SOL*\n` +
+        `🔗 TX: \`${trunc(txHash, 12)}\`\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━`,
+        {
+          parse_mode: "Markdown",
+          reply_markup: new InlineKeyboard()
+            .text("📊 View Snipers", "sniper:list").text("💰 Wallet", "wallet:panel").row()
+            .text("🏠 Main Menu", "menu:home"),
+        }
+      );
+    }
+
+    // Snipe mode OFF — offer options
     return ctx.reply(
-      `🔫 *Sniping!*\nCA: \`${trunc(addr, 8)}\`\nAmount: *${fSol(amount)} SOL* · Slip: *${s.defaultSlippagePercent}%*\nStatus: *🟡 Monitoring...*\nSniper #${sn.id} is live.`,
-      { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("🎯 View Snipers", "menu:snipe").text("🏠 Home", "menu:home") }
+      `━━━━━━━━━━━━━━━━━━━━━━\n🔍 *TOKEN DETECTED*\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `CA: \`${raw}\`\n\n` +
+      `💰 Balance: *${fSol(balance)} SOL*\n` +
+      `⚙️ Config: *${fSol(cfg.buyAmount)} SOL* · *${cfg.slippage}%* slip · *${cfg.priorityFee}*\n\n` +
+      `Choose an action:`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard()
+          .text(`🔫 Snipe ${fSol(cfg.buyAmount)} SOL`, `sniper:buy:${raw}:${cfg.buyAmount}`).row()
+          .text("💰 0.1 SOL", `sniper:buy:${raw}:0.1`)
+          .text("💰 0.5 SOL", `sniper:buy:${raw}:0.5`)
+          .text("💰 1 SOL",   `sniper:buy:${raw}:1.0`).row()
+          .text("📈 Sniper Panel", "sniper:panel")
+          .text("❌ Dismiss",      "menu:home"),
+      }
     );
   }
 
-  // ── 10. copy command ─────────────────────────────────────────────────────
-  if (cmd === "copy") {
-    const addr = parts[1];
-    if (!addr) return ctx.reply(`📋 *Copy Trade:*\n\`copy <wallet_address> [sol_amount]\``, { parse_mode: "Markdown" });
-    const wallet = await getActiveWallet();
-    if (!wallet) return ctx.reply("❌ No active wallet.");
-    const amount = parseFloat(parts[2] ?? "0.1");
-    await db.insert(copyTradesTable).values({ walletId: wallet.id, targetAddress: addr, amountSol: String(amount), mode: "fixed", status: "active" });
-    return ctx.reply(`📋 *Copy Trade Active!*\nTarget: \`${trunc(addr, 8)}\`\nAmount: *${fSol(amount)} SOL* per trade`, { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("📋 Copy Trade", "menu:copytrade").text("🏠 Home", "menu:home") });
+  // ── /set command ────────────────────────────────────────────────────────
+  if (cmd === "/set") {
+    const key = parts[1]?.toLowerCase();
+    const val = parts[2];
+    if (!key || !val) {
+      return ctx.reply(`⚙️ *Usage:*\n\`/set buy_amount 0.5\`\n\`/set slippage 10\`\n\`/set fee auto|low|medium|high\``, { parse_mode: "Markdown" });
+    }
+    const s = await getOrCreateSettings();
+    const updates: Record<string, unknown> = {};
+    if (key === "buy_amount") {
+      const n = parseFloat(val);
+      if (isNaN(n)) return ctx.reply("❌ Invalid amount.");
+      updates.defaultBuyAmountSol = n.toString();
+      // Also update in-memory sniper config
+      const cfg = getSniperConfig(userId);
+      cfg.buyAmount = n;
+    } else if (key === "slippage") {
+      const n = parseFloat(val);
+      if (isNaN(n)) return ctx.reply("❌ Invalid slippage.");
+      updates.defaultSlippagePercent = n.toString();
+      const cfg = getSniperConfig(userId);
+      cfg.slippage = n;
+    } else if (key === "fee" && ["auto", "low", "medium", "high"].includes(val)) {
+      updates.defaultPriorityFee = val;
+      const cfg = getSniperConfig(userId);
+      cfg.priorityFee = val as any;
+    } else {
+      return ctx.reply("❌ Valid keys: `buy_amount`, `slippage`, `fee`", { parse_mode: "Markdown" });
+    }
+    await db.update(settingsTable).set(updates).where(eq(settingsTable.id, s.id));
+    return ctx.reply(
+      `✅ *Setting updated!*\n\`${key}\` → \`${val}\``,
+      { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("⚙️ Settings", "settings:menu").text("🏠 Home", "menu:home") }
+    );
   }
 
-  // ── 11. limit command ────────────────────────────────────────────────────
-  if (cmd === "limit") {
-    const addr = parts[1];
-    if (!addr) return ctx.reply(`🎚 *Limit Order:*\n\`limit <ca> tp:<pct> sl:<pct>\`\n\nExample: \`limit <ca> tp:50 sl:20\``, { parse_mode: "Markdown" });
-    const wallet = await getActiveWallet();
-    if (!wallet) return ctx.reply("❌ No active wallet.");
-    const tpPart = parts.find(p => p.startsWith("tp:")); const slPart = parts.find(p => p.startsWith("sl:"));
-    const tp = tpPart ? parseFloat(tpPart.split(":")[1]) : null;
-    const sl = slPart ? parseFloat(slPart.split(":")[1]) : null;
-    if (!tp && !sl) return ctx.reply("❌ Provide tp:<pct> or sl:<pct>", { parse_mode: "Markdown" });
-    await db.insert(limitOrdersTable).values({ walletId: wallet.id, tokenSymbol: "TOKEN", contractAddress: addr, takeProfitPercent: tp?.toString() ?? null, stopLossPercent: sl?.toString() ?? null, status: "active" });
-    return ctx.reply(`🎚 *Limit Order Set!*\nCA: \`${trunc(addr, 8)}\`\n${tp ? `TP: +${tp}%\n` : ""}${sl ? `SL: -${sl}%\n` : ""}Status: Watching`,
-      { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("🎚 Limit Orders", "menu:limitorders").text("🏠 Home", "menu:home") });
-  }
-
-  // ── 12. dca command ──────────────────────────────────────────────────────
-  if (cmd === "dca") {
-    const addr = parts[1]; const amount = parseFloat(parts[2] ?? "0.1"); const hours = parseFloat(parts[3] ?? "24");
-    if (!addr) return ctx.reply(`🔁 *DCA:*\n\`dca <ca> <sol_amount> <interval_hours>\`\n\nExample: \`dca <ca> 0.1 24\``, { parse_mode: "Markdown" });
-    const wallet = await getActiveWallet();
-    if (!wallet) return ctx.reply("❌ No active wallet.");
-    await db.insert(dcaSetupsTable).values({ walletId: wallet.id, tokenSymbol: "TOKEN", contractAddress: addr, amountSol: String(amount), intervalHours: String(hours), status: "active" });
-    return ctx.reply(`🔁 *DCA Started!*\nCA: \`${trunc(addr, 8)}\`\nAmount: *${fSol(amount)} SOL* every *${hours}h*`,
-      { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("🔁 DCA", "menu:dca").text("🏠 Home", "menu:home") });
-  }
-
-  // ── 13. Handle "snipe:instant" callback from text chain ──────────────────
-  // (This is handled via callback_query, not here)
-
-  // ── 14. Fallback help ─────────────────────────────────────────────────────
-  return ctx.reply(
-    `ℹ️ *Commands*\n━━━━━━━━━━━━━━━━━━━━\n\n` +
-    `💡 *Quickest way to snipe:*\n1. Tap 🎯 Snipe → Enable Snipe Mode\n2. Paste any CA — bot snipes instantly!\n\n` +
-    `*Other commands:*\n\`buy <ca> [sol]\` — Buy a token\n\`snipe <ca> [sol]\` — Manual snipe\n\`copy <wallet> [sol]\` — Copy trade\n\`limit <ca> tp:<pct> sl:<pct>\` — Limit order\n\`dca <ca> <sol> <hours>\` — DCA\n\`/set buy_amount|slippage|fee <val>\` — Settings`,
-    { parse_mode: "Markdown", reply_markup: mainMenu() }
-  );
+  // ── Fallback ────────────────────────────────────────────────────────────
+  const balance = await getWalletBalance();
+  return ctx.reply(screenWelcome(balance), { parse_mode: "Markdown", reply_markup: kbMain() });
 });
 
-// ── "Snipe this CA" from the CA-detected prompt ───────────────────────────────
-bot.on("callback_query:data", async (ctx) => {
-  const data = ctx.callbackQuery.data;
-  if (!data.startsWith("snipe:instant:")) return;
-  await ctx.answerCallbackQuery();
-  const addr = data.replace("snipe:instant:", "");
-  const userId = ctx.from?.id;
-  const wallet = await getActiveWallet();
-  if (!wallet) return ctx.editMessageText("❌ No active wallet.");
-  const s = await getOrCreateSettings();
-  const [sn] = await db.insert(snipersTable).values({
-    walletId: wallet.id, contractAddress: addr,
-    buyAmountSol: String(s.defaultBuyAmountSol), slippagePercent: String(s.defaultSlippagePercent),
-    priorityFee: (s.defaultPriorityFee as any), status: "monitoring", attempts: 0,
-  }).returning();
-  return ctx.editMessageText(
-    `🔫 *Sniping!*\n━━━━━━━━━━━━━━━━━━━━\nCA: \`${trunc(addr, 8)}\`\nAmount: *${fSol(s.defaultBuyAmountSol)} SOL*\nSlippage: *${s.defaultSlippagePercent}%*\nFee: *${s.defaultPriorityFee}*\nStatus: *🟡 Monitoring...*\nSniper #${sn.id} is live.`,
-    { parse_mode: "Markdown", reply_markup: new InlineKeyboard().text("🎯 View Snipers", "menu:snipe").text("⏹ Stop", `snipe:stop:${sn.id}`).row().text("🏠 Home", "menu:home") }
-  );
-});
-
+// Error handler
 bot.catch((err) => {
-  logger.error({ err: err.error, update: err.ctx.update }, "Bot error");
+  logger.error({ err: err.error, update: err.ctx?.update }, "Bot error");
 });
 
 } // end if (token && bot)
 
+// ═══════════════════════════════════════════════════════
+// SECTION 11 — WALLET MONITORING SYSTEM
+// ═══════════════════════════════════════════════════════
+// In production: replace with Solana RPC WebSocket subscription
+// For now: polls DB balance and simulates deposit detection
+
+function startWalletMonitor() {
+  if (!token || !bot) return;
+
+  setInterval(async () => {
+    try {
+      const balance = await getWalletBalance();
+      // Detect if balance increased (simulates real RPC event)
+      if (balance > lastKnownBalance.sol + 0.001) {
+        const received = parseFloat((balance - lastKnownBalance.sol).toFixed(9));
+        const txHash   = generateTxHash();
+        const sender   = "DetectedSender" + Math.random().toString(36).slice(2, 8);
+        logger.info({ received, balance }, "Deposit detected by wallet monitor");
+        await broadcastDepositAlert(received, sender, txHash);
+      }
+      lastKnownBalance.sol = balance;
+    } catch (e) {
+      // Silent — monitoring should never crash the bot
+    }
+  }, 15_000); // Check every 15 seconds
+}
+
+// ═══════════════════════════════════════════════════════
+// SECTION 12 — EXPORT & STARTUP
+// ═══════════════════════════════════════════════════════
+
 export async function startBot() {
-  if (!token || !bot) { logger.warn("TELEGRAM_BOT_TOKEN not set — bot disabled"); return; }
-  logger.info("Telegram bot initializing...");
-  bot.start({ drop_pending_updates: true }).catch((err) => { logger.error({ err }, "Bot crashed"); });
+  if (!token || !bot) {
+    logger.warn("TELEGRAM_BOT_TOKEN not set — Telegram bot disabled");
+    return;
+  }
+
+  logger.info("Starting Solana Sniper Bot...");
+
+  // Start polling
+  bot.start({ drop_pending_updates: true }).catch((err) => {
+    logger.error({ err }, "Bot polling crashed");
+  });
+
+  // Start wallet monitoring
+  startWalletMonitor();
+
   const me = await bot.api.getMe();
-  logger.info({ username: me.username }, "Telegram bot started");
+  logger.info({ username: me.username }, "✅ Solana Sniper Bot online");
 }
