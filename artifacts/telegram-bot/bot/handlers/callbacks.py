@@ -9,7 +9,7 @@ from ..database import (
     get_wallet_balance, get_or_create_settings, update_settings,
     get_trades, get_snipers, insert_sniper, update_sniper_status,
     get_positions, get_copy_trades, get_limit_orders, count_table,
-    get_wallet,
+    get_wallet, mark_wallet_generated,
 )
 from ..keyboards import (
     kb_main, kb_back, kb_sniper, kb_wallet, kb_sniper_edit,
@@ -103,12 +103,13 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     # ── Wallet ────────────────────────────────────────────────────────────
     if data == "wallet:show":
-        wallet_generated.add(user_id)
+        if user_id not in wallet_generated:
+            wallet_generated.add(user_id)
+            await mark_wallet_generated(user_id)
         balance = await get_wallet_balance()
         return await _edit(query, screen_wallet(balance), kb_wallet())
 
     if data == "wallet:panel":
-        wallet_generated.add(user_id)
         balance = await get_wallet_balance()
         return await _edit(query, screen_wallet(balance), kb_wallet())
 

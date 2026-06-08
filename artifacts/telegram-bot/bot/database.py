@@ -46,6 +46,43 @@ async def seed() -> None:
             await conn.execute("INSERT INTO settings DEFAULT VALUES")
             logger.info("Seeded default settings")
 
+        await conn.execute(
+            """CREATE TABLE IF NOT EXISTS bot_users (
+                telegram_id BIGINT PRIMARY KEY,
+                wallet_generated BOOLEAN NOT NULL DEFAULT FALSE,
+                first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )"""
+        )
+
+
+async def load_wallet_generated_users() -> set[int]:
+    async with pool().acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT telegram_id FROM bot_users WHERE wallet_generated = TRUE"
+        )
+        return {int(r["telegram_id"]) for r in rows}
+
+
+async def mark_wallet_generated(user_id: int) -> None:
+    async with pool().acquire() as conn:
+        await conn.execute(
+            """INSERT INTO bot_users (telegram_id, wallet_generated)
+               VALUES ($1, TRUE)
+               ON CONFLICT (telegram_id)
+               DO UPDATE SET wallet_generated = TRUE""",
+            user_id,
+        )
+
+
+async def ensure_bot_user(user_id: int) -> None:
+    async with pool().acquire() as conn:
+        await conn.execute(
+            """INSERT INTO bot_users (telegram_id)
+               VALUES ($1)
+               ON CONFLICT DO NOTHING""",
+            user_id,
+        )
+
 
 async def get_wallet_balance() -> float:
     async with pool().acquire() as conn:

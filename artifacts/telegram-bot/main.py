@@ -7,7 +7,7 @@ from telegram.ext import (
     filters,
 )
 from bot.config import TELEGRAM_BOT_TOKEN
-from bot.database import init_pool, close_pool, seed
+from bot.database import init_pool, close_pool, seed, load_wallet_generated_users
 from bot.handlers.commands import cmd_start, cmd_menu, cmd_wallet, cmd_help, cmd_set
 from bot.handlers.callbacks import handle_callback
 from bot.handlers.messages import handle_message
@@ -16,9 +16,12 @@ from bot.logger import logger
 
 
 async def post_init(app: Application) -> None:
+    from bot.state import wallet_generated
     await init_pool()
     await seed()
-    logger.info("Bot initialized — polling started")
+    persisted = await load_wallet_generated_users()
+    wallet_generated.update(persisted)
+    logger.info("Bot initialized — polling started (%d wallet(s) already generated)", len(persisted))
 
 
 async def post_shutdown(app: Application) -> None:

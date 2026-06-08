@@ -12,10 +12,10 @@ def kb(*rows: list[InlineKeyboardButton]) -> InlineKeyboardMarkup:
 
 def kb_main(user_id: int | None = None) -> InlineKeyboardMarkup:
     rows = []
-    if user_id is None or user_id not in wallet_generated:
-        rows.append([btn("🚀 Generate Wallet", "wallet:show"), btn("💰 Wallet Panel", "wallet:panel")])
-    else:
+    if user_id is not None and user_id in wallet_generated:
         rows.append([btn("💰 Wallet Panel", "wallet:panel")])
+    else:
+        rows.append([btn("🚀 Generate Wallet", "wallet:show")])
     rows += [
         [btn("📥 Deposit", "deposit:show"),      btn("📤 Withdraw", "withdraw:start")],
         [btn("🚨 Alerts", "alerts:menu"),         btn("📈 Sniper Panel", "sniper:panel")],
