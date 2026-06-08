@@ -1,1 +1,2 @@
 - [Vite workflow stdin fix](vite-workflow-stdin.md) — Vite exits in non-TTY workflow env; fix: `tail -f /dev/null | vite ...` in dev script; also covers bad port 21142 and enum import paths.
+- [Python bot architecture](python-bot-architecture.md) — Python bot replaced Node.js grammY bot; uses python-telegram-bot 21.3 + asyncpg; modular layout under artifacts/telegram-bot/bot/.

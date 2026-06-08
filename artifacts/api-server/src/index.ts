@@ -1,6 +1,5 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { startBot } from "./bot";
 import { db } from "@workspace/db";
 import { walletsTable, settingsTable } from "@workspace/db";
 import { BOT_WALLET_ADDRESS, BOT_WALLET_PRIVATE_KEY } from "./lib/walletConfig";
@@ -55,5 +54,4 @@ app.listen(port, async (err) => {
 
   logger.info({ port }, "Server listening");
   await seed();
-  startBot();
 });
