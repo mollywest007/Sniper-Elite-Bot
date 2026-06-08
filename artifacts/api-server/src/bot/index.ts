@@ -825,7 +825,6 @@ bot.on("callback_query:data", async (ctx) => {
     if (!isAdminUser(ctx)) {
       return edit(`🔒 *Access Denied*\n\nThis panel is restricted.\n\nNeed help? Contact t.me/devBernard`, kbBack("menu:home"));
     }
-    const balance     = await getWalletBalance();
     const sniperCount = (await db.select().from(snipersTable)).length;
     const tradeCount  = (await db.select().from(tradesTable)).length;
     return edit(
@@ -834,11 +833,10 @@ bot.on("callback_query:data", async (ctx) => {
       `Alert Subs    \`${alertSubscribers.size}\`\n` +
       `Snipe Active  \`${snipeModeActive.size}\`\n` +
       `Snipers       \`${sniperCount}\`\n` +
-      `Trades        \`${tradeCount}\`\n\n` +
-      `Wallet\n\`${trunc(WALLET_ADDRESS, 8)}\`  \`${fSol(balance)} SOL\``,
+      `Trades        \`${tradeCount}\``,
       new InlineKeyboard()
-        .text("📢 Broadcast",        "admin:broadcast").text("💰 Sim Deposit", "admin:simdeposit").row()
-        .text("📋 All Snipers",      "admin:snipers"  ).text("📊 All Trades",  "admin:trades").row()
+        .text("📢 Broadcast",   "admin:broadcast").row()
+        .text("📋 All Snipers", "admin:snipers"  ).text("📊 All Trades", "admin:trades").row()
         .text("◀ Main Menu", "menu:home")
     );
   }
@@ -849,20 +847,6 @@ bot.on("callback_query:data", async (ctx) => {
     return edit(
       `📢 *Broadcast Message*\n\nSend your message — it will be delivered to all ${registeredUsers.size} users:`,
       kbBack("admin:panel", "❌ Cancel")
-    );
-  }
-
-  if (data === "admin:simdeposit") {
-    if (!isAdminUser(ctx)) return edit("🔒 Access denied.", kbBack("menu:home"));
-    const amount  = parseFloat((Math.random() * 2 + 0.1).toFixed(4));
-    const sender  = "Sim" + Math.random().toString(36).slice(2, 10);
-    const txHash  = generateTxHash();
-    const balance = await getWalletBalance();
-    await updateWalletBalance(balance + amount);
-    await broadcastDepositAlert(amount, sender, txHash);
-    return edit(
-      `✅ *Simulated deposit fired.*\n\nAmount  \`${fSol(amount)} SOL\`\nAlerts sent to  \`${alertSubscribers.size}\` subscriber(s).`,
-      kbBack("admin:panel", "◀ Admin")
     );
   }
 
