@@ -1,15 +1,16 @@
-# [Project name]
+# Phase Snipe
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Solana token sniping bot with a Telegram interface and a React dashboard for managing wallets, trades, snipers, copy trades, limit orders, and DCA setups.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- Frontend workflow: `PORT=5000 BASE_PATH=/ pnpm --filter @workspace/phase-snipe run dev` (port 5000, webview)
+- API Server workflow: `PORT=8080 pnpm --filter @workspace/api-server run start` (port 8080, console)
+- After changing API server code: run `pnpm --filter @workspace/api-server run build` in bash first, then restart the workflow
 - `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required secrets: `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`
 
 ## Stack
 
@@ -38,7 +39,8 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- API Server workflow uses `pnpm run start` (not `dev`) — the `dev` script builds then starts, which takes too long for the workflow's port-open timeout. Always pre-build with `pnpm --filter @workspace/api-server run build` before restarting the workflow after code changes.
+- Frontend vite config requires both `PORT` and `BASE_PATH` env vars — set them inline in the workflow command.
 
 ## Pointers
 
