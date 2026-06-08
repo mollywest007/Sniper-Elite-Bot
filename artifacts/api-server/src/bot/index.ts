@@ -71,6 +71,7 @@ const sniperConfigs      = new Map<number, SniperConfig>();
 const pendingFlows       = new Map<number, PendingFlow>();
 const registeredUsers    = new Set<number>();
 const alertSubscribers   = new Set<number>();
+const walletGenerated    = new Set<number>();
 const snipeModeActive    = new Set<number>();
 const pumpfunMonitorActive = new Set<number>();
 const lastKnownBalance   = { sol: 0 };
@@ -151,9 +152,14 @@ function getSniperConfig(userId: number): SniperConfig {
 // SECTION 5 — KEYBOARD BUILDERS
 // ═══════════════════════════════════════════════════════
 
-function kbMain() {
-  return new InlineKeyboard()
-    .text("🚀 Generate Wallet", "wallet:show").text("💰 Wallet Panel",  "wallet:panel").row()
+function kbMain(userId?: number) {
+  const kb = new InlineKeyboard();
+  if (!userId || !walletGenerated.has(userId)) {
+    kb.text("🚀 Generate Wallet", "wallet:show").text("💰 Wallet Panel", "wallet:panel").row();
+  } else {
+    kb.text("💰 Wallet Panel", "wallet:panel").row();
+  }
+  return kb
     .text("📥 Deposit",         "deposit:show").text("📤 Withdraw",      "withdraw:start").row()
     .text("🚨 Alerts",          "alerts:menu" ).text("📈 Sniper Panel",  "sniper:panel").row()
     .text("📊 Portfolio",       "portfolio"   ).text("🔔 Token Alerts",  "token:alerts").row()
@@ -362,12 +368,13 @@ bot.command("start", async (ctx) => {
   const uid = ctx.from?.id;
   if (uid) registeredUsers.add(uid);
   const balance = await getWalletBalance();
-  await ctx.reply(screenWelcome(balance), { parse_mode: "Markdown", reply_markup: kbMain() });
+  await ctx.reply(screenWelcome(balance), { parse_mode: "Markdown", reply_markup: kbMain(uid) });
 });
 
 bot.command("menu", async (ctx) => {
+  const uid = ctx.from?.id;
   const balance = await getWalletBalance();
-  await ctx.reply(screenWelcome(balance), { parse_mode: "Markdown", reply_markup: kbMain() });
+  await ctx.reply(screenWelcome(balance), { parse_mode: "Markdown", reply_markup: kbMain(uid) });
 });
 
 bot.command("wallet", async (ctx) => {
@@ -428,12 +435,13 @@ bot.on("callback_query:data", async (ctx) => {
   // ── Home ──────────────────────────────────────────────────────────────
   if (data === "menu:home") {
     const balance = await getWalletBalance();
-    return edit(screenWelcome(balance), kbMain());
+    return edit(screenWelcome(balance), kbMain(userId));
   }
 
   // ── Wallet ────────────────────────────────────────────────────────────
 
   if (data === "wallet:show" || data === "wallet:panel") {
+    if (data === "wallet:show") walletGenerated.add(userId);
     const balance = await getWalletBalance();
     return edit(screenWallet(balance), new InlineKeyboard()
       .text("📥 Deposit", "deposit:show").text("📤 Withdraw", "withdraw:start").row()
@@ -1077,7 +1085,7 @@ bot.on("message:text", async (ctx) => {
 
   // ── Fallback ──────────────────────────────────────────────────────────
   const balance = await getWalletBalance();
-  return ctx.reply(screenWelcome(balance), { parse_mode: "Markdown", reply_markup: kbMain() });
+  return ctx.reply(screenWelcome(balance), { parse_mode: "Markdown", reply_markup: kbMain(userId) });
 });
 
 bot.catch((err) => {
