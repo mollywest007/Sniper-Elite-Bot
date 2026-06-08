@@ -67,12 +67,14 @@ type PendingFlow =
   | { type: "snipe_set_sl" }
   | { type: "broadcast_message" };
 
-const sniperConfigs   = new Map<number, SniperConfig>();
-const pendingFlows    = new Map<number, PendingFlow>();
-const registeredUsers = new Set<number>();
-const alertSubscribers = new Set<number>();
-const snipeModeActive  = new Set<number>();
-const lastKnownBalance = { sol: 0 };
+const sniperConfigs      = new Map<number, SniperConfig>();
+const pendingFlows       = new Map<number, PendingFlow>();
+const registeredUsers    = new Set<number>();
+const alertSubscribers   = new Set<number>();
+const snipeModeActive    = new Set<number>();
+const pumpfunMonitorActive = new Set<number>();
+const lastKnownBalance   = { sol: 0 };
+const lastSeenPumpfunMint = { mint: "" };
 
 // ═══════════════════════════════════════════════════════
 // SECTION 3 — ANTI-SPAM & RATE LIMITING
@@ -219,7 +221,7 @@ function screenSniperPanel(cfg: SniperConfig) {
     `Take Profit  \`+${cfg.takeProfitPct}%\`\n` +
     `Stop Loss    \`-${cfg.stopLossPct}%\`\n` +
     `Auto Sell    ${cfg.autoSell ? "✅ ON"  : "❌ OFF"}\n\n` +
-    `_Integrations: Raydium · Jupiter · Pump.fun — coming soon_`
+    `_Integrations: Raydium · Jupiter · Pump.fun ✅_`
   );
 }
 
@@ -728,16 +730,34 @@ bot.on("callback_query:data", async (ctx) => {
   // ── Token Alerts ──────────────────────────────────────────────────────
 
   if (data === "token:alerts") {
+    const pfActive = pumpfunMonitorActive.has(userId);
     return edit(
       `🔔 *Token Alerts*\n\n` +
       `Monitor tokens for events:\n\n` +
-      `🚀 Launch Detector  _(coming)_\n` +
-      `📈 Price Alerts       _(coming)_\n` +
-      `🐋 Whale Alerts       _(coming)_\n` +
-      `📊 Volume Spikes      _(coming)_\n` +
-      `🔌 Pump.fun Monitor   _(coming)_\n\n` +
-      `_Powered by Solana RPC + Yellowstone Geyser_`,
-      kbBack("menu:home", "◀ Main Menu")
+      `🔌 *Pump.fun Monitor*   ${pfActive ? "🟢 *Active*" : "🔴 Inactive"}\n` +
+      `   Streams new token launches from Pump.fun.\n` +
+      `   Auto-snipes when Sniper Panel is armed.\n\n` +
+      `_Powered by Pump.fun public API_`,
+      new InlineKeyboard()
+        .text(pfActive ? "⏹ Stop Pump.fun Monitor" : "🚀 Start Pump.fun Monitor", `pumpfun:toggle:${!pfActive}`).row()
+        .text("◀ Main Menu", "menu:home")
+    );
+  }
+
+  if (data.startsWith("pumpfun:toggle:")) {
+    const enable = data.split(":")[2] === "true";
+    enable ? pumpfunMonitorActive.add(userId) : pumpfunMonitorActive.delete(userId);
+    await ctx.answerCallbackQuery(enable ? "🟢 Pump.fun Monitor ON" : "🔴 Pump.fun Monitor OFF");
+    return edit(
+      `🔔 *Token Alerts*\n\n` +
+      `Monitor tokens for events:\n\n` +
+      `🔌 *Pump.fun Monitor*   ${enable ? "🟢 *Active*" : "🔴 Inactive"}\n` +
+      `   Streams new token launches from Pump.fun.\n` +
+      `   Auto-snipes when Sniper Panel is armed.\n\n` +
+      `_Powered by Pump.fun public API_`,
+      new InlineKeyboard()
+        .text(enable ? "⏹ Stop Pump.fun Monitor" : "🚀 Start Pump.fun Monitor", `pumpfun:toggle:${!enable}`).row()
+        .text("◀ Main Menu", "menu:home")
     );
   }
 
@@ -1086,7 +1106,116 @@ function startWalletMonitor() {
 }
 
 // ═══════════════════════════════════════════════════════
-// SECTION 13 — STARTUP
+// SECTION 13 — PUMP.FUN MONITOR (polls every 30s)
+// ═══════════════════════════════════════════════════════
+
+interface PumpFunCoin {
+  mint:              string;
+  name:              string;
+  symbol:            string;
+  description:       string;
+  market_cap:        number;
+  created_timestamp: number;
+}
+
+async function fetchLatestPumpFunToken(): Promise<PumpFunCoin | null> {
+  try {
+    const res = await fetch(
+      "https://frontend-api.pump.fun/coins?offset=0&limit=1&sort=created_timestamp&order=DESC&includeNsfw=false",
+      { signal: AbortSignal.timeout(8_000) }
+    );
+    if (!res.ok) return null;
+    const coins = (await res.json()) as PumpFunCoin[];
+    return coins?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function startPumpFunMonitor() {
+  if (!token || !bot) return;
+  setInterval(async () => {
+    if (pumpfunMonitorActive.size === 0) return;
+    const coin = await fetchLatestPumpFunToken();
+    if (!coin || coin.mint === lastSeenPumpfunMint.mint) return;
+    lastSeenPumpfunMint.mint = coin.mint;
+
+    const mcStr = coin.market_cap >= 1_000
+      ? `$${(coin.market_cap / 1_000).toFixed(1)}K`
+      : `$${coin.market_cap.toFixed(0)}`;
+
+    const alertText =
+      `🔌 *Pump.fun New Launch*\n\n` +
+      `Name    *${coin.name}* (\`${coin.symbol}\`)\n` +
+      `CA      \`${coin.mint}\`\n` +
+      `MC      ${mcStr}\n\n` +
+      `_Tap to snipe or buy manually_`;
+
+    for (const userId of pumpfunMonitorActive) {
+      try {
+        const cfg = getSniperConfig(userId);
+        const kb = new InlineKeyboard()
+          .text(`⚡ Snipe ${cfg.buyAmount} SOL`, `snipe:quick:${coin.mint}:${cfg.buyAmount}`).row()
+          .text("📈 Sniper Panel", "sniper:panel").text("🏠 Home", "menu:home");
+
+        await bot.api.sendMessage(userId, alertText, {
+          parse_mode: "Markdown",
+          reply_markup: kb,
+        });
+
+        if (cfg.sniping && cfg.autoBuy) {
+          const balance = await getWalletBalance();
+          if (balance >= cfg.buyAmount) {
+            const [w] = await db.select().from(walletsTable).where(eq(walletsTable.address, WALLET_ADDRESS));
+            if (w) {
+              const txHash = generateTxHash();
+              const newBal = parseFloat((balance - cfg.buyAmount).toFixed(9));
+              await Promise.all([
+                updateWalletBalance(newBal),
+                db.insert(snipersTable).values({
+                  walletId: w.id,
+                  contractAddress: coin.mint,
+                  buyAmountSol: String(cfg.buyAmount),
+                  slippagePercent: String(cfg.slippage),
+                  priorityFee: cfg.priorityFee,
+                  status: "sniped",
+                  attempts: 1,
+                }),
+                db.insert(tradesTable).values({
+                  walletId: w.id,
+                  type: "buy",
+                  tokenSymbol: coin.symbol,
+                  tokenName: coin.name,
+                  contractAddress: coin.mint,
+                  amountSol: String(cfg.buyAmount),
+                  priceSol: "0.000001",
+                  txHash,
+                  status: "success",
+                }),
+              ]);
+              await bot.api.sendMessage(userId,
+                `✅ *Auto-Sniped via Pump.fun*\n\n` +
+                `Token   *${coin.name}* (\`${coin.symbol}\`)\n` +
+                `Amount  \`${cfg.buyAmount} SOL\`\n` +
+                `TX      \`${txHash.slice(0, 20)}…\`\n\n` +
+                `New balance  \`${fSol(newBal)} SOL\``,
+                { parse_mode: "Markdown",
+                  reply_markup: new InlineKeyboard()
+                    .text("📊 My Snipers", "sniper:list").text("💰 Wallet", "wallet:panel").row()
+                    .text("🏠 Home", "menu:home") }
+              );
+            }
+          }
+        }
+      } catch (err) {
+        logger.error({ err, userId }, "Pump.fun alert send failed");
+      }
+    }
+  }, 30_000);
+}
+
+// ═══════════════════════════════════════════════════════
+// SECTION 14 — STARTUP
 // ═══════════════════════════════════════════════════════
 
 export async function startBot() {
@@ -1099,6 +1228,7 @@ export async function startBot() {
     logger.error({ err }, "Bot polling crashed");
   });
   startWalletMonitor();
+  startPumpFunMonitor();
   const me = await bot.api.getMe();
   logger.info({ username: me.username }, "✅ Phase Snipe bot online");
 }
