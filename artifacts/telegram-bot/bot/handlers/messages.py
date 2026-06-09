@@ -6,11 +6,12 @@ from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
 from ..database import get_wallet_balance, get_wallet, insert_sniper
-from ..keyboards import kb_main, kb_back, kb_sniper, kb
+from ..keyboards import kb_main, kb_back, kb_sniper, kb, btn
 from ..screens import screen_withdraw_confirm, trunc, f_sol
 from ..state import (
     registered_users, pending_flows, snipe_mode_active,
-    is_rate_limited, get_sniper_config,
+    is_rate_limited, get_sniper_config, tracked_wallet_address,
+    alert_subscribers,
 )
 from ..logger import logger
 
@@ -199,6 +200,30 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             await message.reply_text(f"✅ Stop loss set to `-{v:.1f}%`", parse_mode=ParseMode.MARKDOWN)
         except (ValueError, TypeError):
             await message.reply_text("❌ Invalid value.", parse_mode=ParseMode.MARKDOWN)
+        return
+
+    # ── Set tracked wallet for alerts ─────────────────────────────────────
+    if flow and flow["type"] == "set_tracked_wallet":
+        pending_flows.pop(user_id, None)
+        if not _is_valid_ca(raw):
+            await message.reply_text(
+                "❌ That doesn't look like a valid Solana address. Please try again.",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb([btn("◀ Alerts", "alerts:menu")]),
+            )
+            return
+        tracked_wallet_address[user_id] = raw
+        alert_subscribers.discard(user_id)
+        await message.reply_text(
+            f"✅ *Wallet set for tracking*\n\n"
+            f"`{raw}`\n\n"
+            "Alerts have been reset. Go back to the Alerts menu to enable them.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=kb(
+                [btn("🚨 Go to Alerts", "alerts:menu")],
+                [btn("◀ Main Menu", "menu:home")],
+            ),
+        )
         return
 
     # ── Admin broadcast flow ───────────────────────────────────────────────

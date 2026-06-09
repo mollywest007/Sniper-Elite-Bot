@@ -8,43 +8,57 @@ from ..database import get_wallet_balance, update_wallet_balance
 from ..state import (
     alert_subscribers, snipe_mode_active, pumpfun_monitor_active,
     last_known_balance, last_seen_pumpfun_mint, get_sniper_config,
+    tracked_wallet_address, last_known_tracked_balance,
 )
 from ..logger import logger
 
 
 async def monitor_wallet(ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Fire balance-change alerts for each subscriber's tracked wallet."""
+    if not alert_subscribers:
+        return
+
     try:
-        from ..database import get_wallet
-        wallet = await get_wallet()
-        if not wallet:
-            return
+        import asyncpg
+        from ..database import pool
 
-        balance = await get_wallet_balance()
-        prev = last_known_balance["sol"]
-        if prev == 0.0:
-            last_known_balance["sol"] = balance
-            return
-        delta = balance - prev
-        if abs(delta) < 0.000001:
-            return
-        last_known_balance["sol"] = balance
-        if not alert_subscribers:
-            return
-
-        direction = "📥 Deposit" if delta > 0 else "📤 Withdrawal"
-        text = (
-            f"🚨 *Wallet Alert*\n\n"
-            f"Event  {direction}\n"
-            f"Amount  `{abs(delta):.4f} SOL`\n"
-            f"Balance  `{balance:.4f} SOL`"
-        )
         for uid in list(alert_subscribers):
+            addr = tracked_wallet_address.get(uid)
+            if not addr:
+                # user hasn't set a wallet to track — skip silently
+                continue
+
             try:
+                async with pool().acquire() as conn:
+                    row = await conn.fetchrow(
+                        "SELECT balance_sol FROM wallets WHERE address=$1", addr
+                    )
+                balance = float(row["balance_sol"]) if row else 0.0
+
+                prev = last_known_tracked_balance.get(addr)
+                if prev is None:
+                    last_known_tracked_balance[addr] = balance
+                    continue
+
+                delta = balance - prev
+                if abs(delta) < 0.000001:
+                    continue
+
+                last_known_tracked_balance[addr] = balance
+                direction = "📥 Deposit" if delta > 0 else "📤 Withdrawal"
+                text = (
+                    f"🚨 *Wallet Alert*\n\n"
+                    f"Event    {direction}\n"
+                    f"Amount   `{abs(delta):.4f} SOL`\n"
+                    f"Balance  `{balance:.4f} SOL`\n"
+                    f"Wallet   `{addr[:8]}...`"
+                )
                 await ctx.bot.send_message(uid, text, parse_mode=ParseMode.MARKDOWN)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error("Wallet monitor error for uid %s: %s", uid, e)
+
     except Exception as exc:
-        logger.error("Wallet monitor error: %s", exc)
+        logger.error("Wallet monitor outer error: %s", exc)
 
 
 async def monitor_pumpfun(ctx: ContextTypes.DEFAULT_TYPE) -> None:

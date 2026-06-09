@@ -22,6 +22,7 @@ from ..screens import (
 from ..state import (
     registered_users, alert_subscribers, wallet_generated, snipe_mode_active,
     pumpfun_monitor_active, pending_flows, is_rate_limited, get_sniper_config,
+    tracked_wallet_address,
 )
 from ..config import ADMIN_USERNAME, BOT_WALLET_ADDRESS
 from ..logger import logger
@@ -176,48 +177,58 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     # ── Alerts ────────────────────────────────────────────────────────────
     if data == "alerts:menu":
-        wallet = await get_wallet()
-        if not wallet:
+        addr = tracked_wallet_address.get(user_id)
+        if not addr:
             return await _edit(
                 query,
                 "🚨 *Wallet Alerts*\n\n"
-                "⚠️ No wallet configured yet.\n\n"
-                "You must add a wallet to track before enabling alerts.",
-                kb([btn("👛 Add Wallet", "wallet:show"), btn("◀ Home", "menu:home")]),
+                "⚠️ No wallet set to track yet.\n\n"
+                "Send the bot a Solana wallet address first, then come back to enable alerts.",
+                kb([btn("📋 Set Wallet to Track", "alerts:set_wallet"), btn("◀ Home", "menu:home")]),
             )
         is_on = user_id in alert_subscribers
         return await _edit(
             query,
             f"🚨 *Wallet Alerts*\n\n"
             f"Status  {'🟢 *Active*' if is_on else '🔴 Inactive'}\n\n"
-            f"Monitoring  `{trunc(wallet['address'], 8)}`",
+            f"Tracking  `{trunc(addr, 12)}`",
             kb_alerts(user_id),
+        )
+
+    if data == "alerts:set_wallet":
+        pending_flows[user_id] = {"type": "set_tracked_wallet"}
+        return await _edit(
+            query,
+            "📋 *Set Wallet to Track*\n\n"
+            "Send me the Solana wallet address you want to monitor for alerts.\n\n"
+            "_Paste the address as a message:_",
+            kb([btn("❌ Cancel", "alerts:menu")]),
         )
 
     if data.startswith("alerts:toggle:"):
         enable = data.split(":")[2] == "true"
         if enable:
-            wallet = await get_wallet()
-            if not wallet:
-                await query.answer("⚠️ Add a wallet first!", show_alert=True)
+            addr = tracked_wallet_address.get(user_id)
+            if not addr:
+                await query.answer("⚠️ Set a wallet to track first!", show_alert=True)
                 return await _edit(
                     query,
                     "🚨 *Wallet Alerts*\n\n"
-                    "⚠️ No wallet configured yet.\n\n"
-                    "You must add a wallet to track before enabling alerts.",
-                    kb([btn("👛 Add Wallet", "wallet:show"), btn("◀ Home", "menu:home")]),
+                    "⚠️ No wallet set to track yet.\n\n"
+                    "Send the bot a Solana wallet address first, then come back to enable alerts.",
+                    kb([btn("📋 Set Wallet to Track", "alerts:set_wallet"), btn("◀ Home", "menu:home")]),
                 )
             alert_subscribers.add(user_id)
         else:
             alert_subscribers.discard(user_id)
         await query.answer("🔔 Alerts on" if enable else "🔕 Alerts off")
-        wallet = await get_wallet()
-        addr = trunc(wallet["address"], 8) if wallet else "—"
+        addr = tracked_wallet_address.get(user_id, "—")
+        is_on = user_id in alert_subscribers
         return await _edit(
             query,
             f"🚨 *Wallet Alerts*\n\n"
-            f"Status  {'🟢 *Active*' if enable else '🔴 Inactive'}\n\n"
-            f"Monitoring  `{addr}`",
+            f"Status  {'🟢 *Active*' if is_on else '🔴 Inactive'}\n\n"
+            f"Tracking  `{trunc(addr, 12)}`",
             kb_alerts(user_id),
         )
 

@@ -74,6 +74,7 @@ def kb_alerts(user_id: int) -> InlineKeyboardMarkup:
         [btn("💸 Deposit", "alerts:type:deposit"), btn("📤 Withdraw", "alerts:type:withdraw")],
         [btn("🐋 Large TX", "alerts:type:largetx"), btn("🛒 Token Buy", "alerts:type:buy")],
         [btn("💰 Token Sell", "alerts:type:sell")],
+        [btn("🔄 Change Wallet", "alerts:set_wallet")],
         [btn("◀ Back", "menu:home")],
     )
 

@@ -11,6 +11,11 @@ sniper_configs: dict[int, dict[str, Any]] = {}
 pending_flows: dict[int, dict[str, Any]] = {}
 cooldowns: dict[int, float] = {}
 
+# wallet address each user wants to track for alerts (set via bot message)
+tracked_wallet_address: dict[int, str] = {}
+# last known SOL balance per tracked address
+last_known_tracked_balance: dict[str, float] = {}
+
 last_known_balance: dict[str, float] = {"sol": 0.0}
 last_seen_pumpfun_mint: dict[str, str] = {"mint": ""}
 
