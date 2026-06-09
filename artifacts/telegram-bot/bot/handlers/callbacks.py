@@ -176,27 +176,48 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     # ── Alerts ────────────────────────────────────────────────────────────
     if data == "alerts:menu":
+        wallet = await get_wallet()
+        if not wallet:
+            return await _edit(
+                query,
+                "🚨 *Wallet Alerts*\n\n"
+                "⚠️ No wallet configured yet.\n\n"
+                "You must add a wallet to track before enabling alerts.",
+                kb([btn("👛 Add Wallet", "wallet:show"), btn("◀ Home", "menu:home")]),
+            )
         is_on = user_id in alert_subscribers
         return await _edit(
             query,
             f"🚨 *Wallet Alerts*\n\n"
             f"Status  {'🟢 *Active*' if is_on else '🔴 Inactive'}\n\n"
-            f"Monitoring  `{trunc(BOT_WALLET_ADDRESS, 8)}`",
+            f"Monitoring  `{trunc(wallet['address'], 8)}`",
             kb_alerts(user_id),
         )
 
     if data.startswith("alerts:toggle:"):
         enable = data.split(":")[2] == "true"
         if enable:
+            wallet = await get_wallet()
+            if not wallet:
+                await query.answer("⚠️ Add a wallet first!", show_alert=True)
+                return await _edit(
+                    query,
+                    "🚨 *Wallet Alerts*\n\n"
+                    "⚠️ No wallet configured yet.\n\n"
+                    "You must add a wallet to track before enabling alerts.",
+                    kb([btn("👛 Add Wallet", "wallet:show"), btn("◀ Home", "menu:home")]),
+                )
             alert_subscribers.add(user_id)
         else:
             alert_subscribers.discard(user_id)
         await query.answer("🔔 Alerts on" if enable else "🔕 Alerts off")
+        wallet = await get_wallet()
+        addr = trunc(wallet["address"], 8) if wallet else "—"
         return await _edit(
             query,
             f"🚨 *Wallet Alerts*\n\n"
             f"Status  {'🟢 *Active*' if enable else '🔴 Inactive'}\n\n"
-            f"Monitoring  `{trunc(BOT_WALLET_ADDRESS, 8)}`",
+            f"Monitoring  `{addr}`",
             kb_alerts(user_id),
         )
 

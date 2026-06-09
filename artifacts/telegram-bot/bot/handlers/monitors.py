@@ -14,6 +14,11 @@ from ..logger import logger
 
 async def monitor_wallet(ctx: ContextTypes.DEFAULT_TYPE) -> None:
     try:
+        from ..database import get_wallet
+        wallet = await get_wallet()
+        if not wallet:
+            return
+
         balance = await get_wallet_balance()
         prev = last_known_balance["sol"]
         if prev == 0.0:
