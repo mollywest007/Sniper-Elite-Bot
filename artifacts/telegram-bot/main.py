@@ -11,7 +11,7 @@ from bot.database import init_pool, close_pool, seed, load_wallet_generated_user
 from bot.handlers.commands import cmd_start, cmd_menu, cmd_wallet, cmd_help, cmd_set
 from bot.handlers.callbacks import handle_callback
 from bot.handlers.messages import handle_message
-from bot.handlers.monitors import monitor_wallet, monitor_pumpfun
+from bot.handlers.monitors import monitor_wallet
 from bot.logger import logger
 
 
@@ -51,8 +51,7 @@ def main() -> None:
     )
 
     jq = app.job_queue
-    jq.run_repeating(monitor_wallet,  interval=15, first=15)
-    jq.run_repeating(monitor_pumpfun, interval=30, first=30)
+    jq.run_repeating(monitor_wallet, interval=15, first=15)
 
     logger.info("Starting Phase Snipe bot...")
     app.run_polling(drop_pending_updates=True)

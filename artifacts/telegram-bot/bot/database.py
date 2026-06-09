@@ -15,7 +15,7 @@ def _dsn() -> str:
 
 async def init_pool() -> None:
     global _pool
-    _pool = await asyncpg.create_pool(_dsn(), min_size=2, max_size=10)
+    _pool = await asyncpg.create_pool(_dsn(), min_size=4, max_size=15)
     logger.info("Database pool created")
 
 

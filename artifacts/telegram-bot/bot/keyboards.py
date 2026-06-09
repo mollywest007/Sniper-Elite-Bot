@@ -1,5 +1,5 @@
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-from .state import wallet_generated, alert_subscribers, pumpfun_monitor_active
+from .state import wallet_generated, alert_subscribers
 
 
 def btn(text: str, data: str) -> InlineKeyboardButton:
@@ -19,9 +19,9 @@ def kb_main(user_id: int | None = None) -> InlineKeyboardMarkup:
     rows += [
         [btn("📥 Deposit", "deposit:show"),      btn("📤 Withdraw", "withdraw:start")],
         [btn("🚨 Alerts", "alerts:menu"),         btn("📈 Sniper Panel", "sniper:panel")],
-        [btn("📊 Portfolio", "portfolio"),         btn("🔔 Token Alerts", "token:alerts")],
-        [btn("⚙️ Settings", "settings:menu"),     btn("🔒 Security", "security:menu")],
-        [btn("👑 Admin Panel", "admin:panel"),     btn("❓ Help", "help:show")],
+        [btn("📊 Portfolio", "portfolio"),         btn("⚙️ Settings", "settings:menu")],
+        [btn("🔒 Security", "security:menu"),      btn("❓ Help", "help:show")],
+        [btn("👑 Admin Panel", "admin:panel")],
     ]
     return InlineKeyboardMarkup(rows)
 
@@ -79,10 +79,3 @@ def kb_alerts(user_id: int) -> InlineKeyboardMarkup:
     )
 
 
-def kb_token_alerts(user_id: int) -> InlineKeyboardMarkup:
-    pf_active = user_id in pumpfun_monitor_active
-    return kb(
-        [btn("⏹ Stop Pump.fun Monitor" if pf_active else "🚀 Start Pump.fun Monitor",
-             f"pumpfun:toggle:{'false' if pf_active else 'true'}")],
-        [btn("◀ Main Menu", "menu:home")],
-    )

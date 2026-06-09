@@ -13,7 +13,7 @@ from ..database import (
 )
 from ..keyboards import (
     kb_main, kb_back, kb_sniper, kb_wallet, kb_sniper_edit,
-    kb_alerts, kb_token_alerts, btn, kb,
+    kb_alerts, btn, kb,
 )
 from ..screens import (
     screen_wallet, screen_deposit, screen_sniper_panel, screen_sniper_edit,
@@ -21,7 +21,7 @@ from ..screens import (
 )
 from ..state import (
     registered_users, alert_subscribers, wallet_generated, snipe_mode_active,
-    pumpfun_monitor_active, pending_flows, is_rate_limited, get_sniper_config,
+    pending_flows, is_rate_limited, get_sniper_config,
     tracked_wallet_address,
 )
 from ..config import ADMIN_USERNAME, BOT_WALLET_ADDRESS
@@ -389,36 +389,6 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             ),
         )
 
-    # ── Token Alerts ──────────────────────────────────────────────────────
-    if data == "token:alerts":
-        pf_active = user_id in pumpfun_monitor_active
-        text = (
-            "🔔 *Token Alerts*\n\n"
-            "Monitor tokens for events:\n\n"
-            f"🔌 *Pump.fun Monitor*   {'🟢 *Active*' if pf_active else '🔴 Inactive'}\n"
-            "   Streams new token launches from Pump.fun.\n"
-            "   Auto-snipes when Sniper Panel is armed.\n\n"
-            "_Powered by Pump.fun public API_"
-        )
-        return await _edit(query, text, kb_token_alerts(user_id))
-
-    if data.startswith("pumpfun:toggle:"):
-        enable = data.split(":")[2] == "true"
-        if enable:
-            pumpfun_monitor_active.add(user_id)
-        else:
-            pumpfun_monitor_active.discard(user_id)
-        await query.answer("🟢 Pump.fun Monitor ON" if enable else "🔴 Pump.fun Monitor OFF")
-        pf_active = user_id in pumpfun_monitor_active
-        text = (
-            "🔔 *Token Alerts*\n\n"
-            "Monitor tokens for events:\n\n"
-            f"🔌 *Pump.fun Monitor*   {'🟢 *Active*' if pf_active else '🔴 Inactive'}\n"
-            "   Streams new token launches from Pump.fun.\n"
-            "   Auto-snipes when Sniper Panel is armed.\n\n"
-            "_Powered by Pump.fun public API_"
-        )
-        return await _edit(query, text, kb_token_alerts(user_id))
 
     # ── Settings ──────────────────────────────────────────────────────────
     if data == "settings:menu":

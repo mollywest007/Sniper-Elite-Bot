@@ -5,7 +5,6 @@ registered_users: set[int] = set()
 alert_subscribers: set[int] = set()
 wallet_generated: set[int] = set()
 snipe_mode_active: set[int] = set()
-pumpfun_monitor_active: set[int] = set()
 
 sniper_configs: dict[int, dict[str, Any]] = {}
 pending_flows: dict[int, dict[str, Any]] = {}
@@ -17,10 +16,9 @@ tracked_wallet_address: dict[int, str] = {}
 last_known_tracked_balance: dict[str, float] = {}
 
 last_known_balance: dict[str, float] = {"sol": 0.0}
-last_seen_pumpfun_mint: dict[str, str] = {"mint": ""}
 
 
-def is_rate_limited(user_id: int, cooldown_ms: int = 800) -> bool:
+def is_rate_limited(user_id: int, cooldown_ms: int = 300) -> bool:
     now = time.time() * 1000
     last = cooldowns.get(user_id, 0.0)
     if now - last < cooldown_ms:

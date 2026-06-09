@@ -1,13 +1,8 @@
-import random
-import string
-import httpx
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
-from ..database import get_wallet_balance, update_wallet_balance
 from ..state import (
-    alert_subscribers, snipe_mode_active, pumpfun_monitor_active,
-    last_known_balance, last_seen_pumpfun_mint, get_sniper_config,
+    alert_subscribers,
     tracked_wallet_address, last_known_tracked_balance,
 )
 from ..logger import logger
