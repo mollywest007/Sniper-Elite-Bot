@@ -32,14 +32,20 @@ def pool() -> asyncpg.Pool:
 
 async def seed() -> None:
     async with pool().acquire() as conn:
-        wallets = await conn.fetch("SELECT id FROM wallets LIMIT 1")
+        wallets = await conn.fetch("SELECT id, address FROM wallets LIMIT 1")
         if not wallets:
             await conn.execute(
                 """INSERT INTO wallets (name, address, private_key, balance_sol, balance_usdc, is_active)
                    VALUES ($1,$2,$3,'0','0',true)""",
-                "Bot Wallet", BOT_WALLET_ADDRESS, BOT_WALLET_PRIVATE_KEY,
+                "Bot Wallet", BOT_WALLET_ADDRESS, "",
             )
             logger.info("Seeded bot wallet")
+        elif wallets[0]["address"] != BOT_WALLET_ADDRESS:
+            await conn.execute(
+                "UPDATE wallets SET address=$1, private_key='' WHERE id=$2",
+                BOT_WALLET_ADDRESS, wallets[0]["id"],
+            )
+            logger.info("Updated wallet address to %s", BOT_WALLET_ADDRESS)
 
         settings = await conn.fetch("SELECT id FROM settings LIMIT 1")
         if not settings:

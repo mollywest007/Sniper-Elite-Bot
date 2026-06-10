@@ -1,4 +1,4 @@
-from .config import BOT_WALLET_ADDRESS, BOT_WALLET_PRIVATE_KEY
+from .config import BOT_WALLET_ADDRESS
 
 
 def trunc(addr: str | None, chars: int = 6) -> str:
@@ -46,9 +46,8 @@ def screen_wallet(balance: float) -> str:
     return (
         "💰 *Wallet*\n\n"
         f"📍 Address\n`{BOT_WALLET_ADDRESS}`\n\n"
-        f"🔑 Private Key\n`{BOT_WALLET_PRIVATE_KEY}`\n\n"
         f"💵 Balance  ·  `{f_sol(balance)} SOL`\n\n"
-        "⚠️ _Never share your private key with anyone_"
+        "_Tap the address to copy it_"
     )
 
 
