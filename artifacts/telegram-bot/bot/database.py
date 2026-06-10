@@ -91,6 +91,7 @@ async def ensure_bot_user(user_id: int) -> None:
 
 
 async def get_wallet_balance() -> float:
+    """Read cached balance from DB (fast)."""
     async with pool().acquire() as conn:
         row = await conn.fetchrow(
             "SELECT balance_sol FROM wallets WHERE address=$1", BOT_WALLET_ADDRESS
@@ -104,6 +105,28 @@ async def update_wallet_balance(amount: float) -> None:
             "UPDATE wallets SET balance_sol=$1 WHERE address=$2",
             f"{amount:.9f}", BOT_WALLET_ADDRESS,
         )
+
+
+async def sync_wallet_balance(address: str) -> float:
+    """Fetch real SOL balance from Solana RPC, save to DB, return it.
+    Falls back to cached DB value if RPC is unreachable.
+    """
+    from .solana import fetch_sol_balance
+    live = await fetch_sol_balance(address)
+    if live is None:
+        return await get_wallet_balance()
+    async with pool().acquire() as conn:
+        await conn.execute(
+            "UPDATE wallets SET balance_sol=$1 WHERE address=$2",
+            f"{live:.9f}", address,
+        )
+    return live
+
+
+async def sync_address_balance(address: str) -> float | None:
+    """Fetch real SOL balance from Solana RPC for any address (used by monitors)."""
+    from .solana import fetch_sol_balance
+    return await fetch_sol_balance(address)
 
 
 async def get_wallet() -> Optional[dict[str, Any]]:

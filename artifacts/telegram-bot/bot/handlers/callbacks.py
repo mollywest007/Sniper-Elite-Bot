@@ -6,7 +6,7 @@ from telegram.constants import ParseMode
 from telegram.error import BadRequest
 
 from ..database import (
-    get_wallet_balance, get_or_create_settings, update_settings,
+    get_wallet_balance, sync_wallet_balance, get_or_create_settings, update_settings,
     get_trades, get_snipers, insert_sniper, update_sniper_status,
     get_positions, get_copy_trades, get_limit_orders, count_table,
     get_wallet, mark_wallet_generated,
@@ -115,7 +115,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return await _edit(query, screen_wallet(balance), kb_wallet())
 
     if data == "wallet:refresh":
-        balance = await get_wallet_balance()
+        from ..config import BOT_WALLET_ADDRESS
+        await query.answer("🔄 Checking chain...")
+        balance = await sync_wallet_balance(BOT_WALLET_ADDRESS)
         return await _edit(query, screen_wallet(balance), kb_wallet())
 
     if data == "wallet:history":
