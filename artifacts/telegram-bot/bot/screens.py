@@ -42,11 +42,23 @@ def screen_welcome(balance: float) -> str:
     )
 
 
+def screen_wallet_generated() -> str:
+    return (
+        "✅ *Wallet Generated!*\n\n"
+        "Your Solana wallet has been created and secured.\n\n"
+        "📍 *Address*\n"
+        f"`{BOT_WALLET_ADDRESS}`\n\n"
+        "🔐 *Private key* · configured and stored in bot\n\n"
+        "_Tap the address to copy it. Send SOL here to fund your wallet._"
+    )
+
+
 def screen_wallet(balance: float) -> str:
     return (
         "💰 *Wallet*\n\n"
-        f"📍 Address\n`{BOT_WALLET_ADDRESS}`\n\n"
-        f"💵 Balance  ·  `{f_sol(balance)} SOL`\n\n"
+        f"📍 *Address*\n`{BOT_WALLET_ADDRESS}`\n\n"
+        f"💵 *Balance*  ·  `{f_sol(balance)} SOL`\n\n"
+        "🔐 *Private key*  ·  configured and stored in bot\n\n"
         "_Tap the address to copy it_"
     )
 
