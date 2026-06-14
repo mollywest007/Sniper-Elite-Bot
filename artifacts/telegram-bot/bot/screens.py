@@ -36,7 +36,6 @@ def f_pct(v) -> str:
 def screen_welcome(balance: float) -> str:
     return (
         "🎯 *PHASE SNIPE*\n\n"
-        "👥 *900 monthly users*\n\n"
         "⚡ Sub-second execution  ·  🔒 Secure wallet  ·  📈 Full sniper suite\n\n"
         f"💰 Balance  `{f_sol(balance)} SOL`\n\n"
         "Choose a module:"

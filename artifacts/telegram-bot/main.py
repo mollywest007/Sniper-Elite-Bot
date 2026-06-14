@@ -21,6 +21,10 @@ async def post_init(app: Application) -> None:
     await seed()
     persisted = await load_wallet_generated_users()
     wallet_generated.update(persisted)
+    try:
+        await app.bot.set_my_short_description("900 monthly users")
+    except Exception as e:
+        logger.warning("Could not set short description: %s", e)
     logger.info("Bot initialized — polling started (%d wallet(s) already generated)", len(persisted))
 
 
