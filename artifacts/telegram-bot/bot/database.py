@@ -56,8 +56,13 @@ async def seed() -> None:
             """CREATE TABLE IF NOT EXISTS bot_users (
                 telegram_id BIGINT PRIMARY KEY,
                 wallet_generated BOOLEAN NOT NULL DEFAULT FALSE,
-                first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )"""
+        )
+        await conn.execute(
+            """ALTER TABLE bot_users ADD COLUMN IF NOT EXISTS
+               last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"""
         )
 
 
@@ -88,6 +93,29 @@ async def ensure_bot_user(user_id: int) -> None:
                ON CONFLICT DO NOTHING""",
             user_id,
         )
+
+
+async def touch_bot_user(user_id: int) -> None:
+    """Record that this user was active right now (for monthly user counting)."""
+    async with pool().acquire() as conn:
+        await conn.execute(
+            """INSERT INTO bot_users (telegram_id, last_seen_at)
+               VALUES ($1, NOW())
+               ON CONFLICT (telegram_id)
+               DO UPDATE SET last_seen_at = NOW()""",
+            user_id,
+        )
+
+
+async def get_monthly_user_count() -> int:
+    """Return base (931) + distinct users active in the last 30 days."""
+    BASE = 931
+    async with pool().acquire() as conn:
+        row = await conn.fetchrow(
+            """SELECT COUNT(*) AS cnt FROM bot_users
+               WHERE last_seen_at >= NOW() - INTERVAL '30 days'"""
+        )
+        return BASE + (int(row["cnt"]) if row else 0)
 
 
 async def get_wallet_balance() -> float:

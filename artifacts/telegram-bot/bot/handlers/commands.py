@@ -2,7 +2,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
-from ..database import get_wallet_balance, get_or_create_settings, update_settings
+from ..database import get_wallet_balance, get_or_create_settings, update_settings, touch_bot_user
 from ..keyboards import kb_main, kb_back
 from ..screens import screen_welcome
 from ..state import registered_users, wallet_generated, is_rate_limited
@@ -15,6 +15,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not user:
         return
     registered_users.add(user.id)
+    await touch_bot_user(user.id)
     balance = await get_wallet_balance()
     text = screen_welcome(balance)
     await update.message.reply_text(

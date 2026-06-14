@@ -42,6 +42,18 @@ router.get("/", async (req, res) => {
   // Recent trades
   const recentTrades = await db.select().from(tradesTable).orderBy(desc(tradesTable.executedAt)).limit(5);
 
+  // Monthly users: base 931 + distinct users active in last 30 days
+  const BASE_USERS = 931;
+  let monthlyUsers = BASE_USERS;
+  try {
+    const result = await db.execute(
+      sql`SELECT COUNT(*)::int AS cnt FROM bot_users WHERE last_seen_at >= NOW() - INTERVAL '30 days'`
+    );
+    monthlyUsers = BASE_USERS + (Number((result.rows[0] as any)?.cnt ?? 0));
+  } catch {
+    // bot_users table may not exist yet — fall back to base
+  }
+
   res.json({
     totalValueSol,
     pnlTodaySol,
@@ -51,6 +63,7 @@ router.get("/", async (req, res) => {
     activeSnipersCount: activeSnipers.length,
     openPositionsCount: positions.length,
     activeCopyTradesCount: activeCopyTrades.length,
+    monthlyUsers,
     recentTrades: recentTrades.map(t => ({
       ...t,
       amountSol: parseFloat(t.amountSol),

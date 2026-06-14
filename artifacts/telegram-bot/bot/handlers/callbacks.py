@@ -6,7 +6,8 @@ from telegram.constants import ParseMode
 from telegram.error import BadRequest
 
 from ..database import (
-    get_wallet_balance, sync_wallet_balance, get_or_create_settings, update_settings,
+    get_wallet_balance, sync_wallet_balance, touch_bot_user,
+    get_or_create_settings, update_settings,
     get_trades, get_snipers, insert_sniper, update_sniper_status,
     get_positions, get_copy_trades, get_limit_orders, count_table,
     get_wallet, mark_wallet_generated,
@@ -90,6 +91,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return
     user_id = user.id
     registered_users.add(user_id)
+    await touch_bot_user(user_id)
 
     if is_rate_limited(user_id):
         return

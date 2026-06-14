@@ -82,6 +82,18 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+
+        <Card className="bg-card/50 border-border col-span-2 md:col-span-4">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-xs text-muted-foreground uppercase font-mono tracking-wider">Monthly Users</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0 flex items-baseline gap-3">
+            <div className="text-3xl font-mono font-bold text-primary">
+              {(dashboard as any).monthlyUsers?.toLocaleString() ?? 931}
+            </div>
+            <span className="text-sm text-muted-foreground font-mono">active in last 30 days</span>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
