@@ -31,7 +31,17 @@ from ..logger import logger
 
 async def _edit(query, text: str, markup: InlineKeyboardMarkup) -> None:
     try:
-        await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=markup)
+        if query.message and query.message.photo:
+            # The home screen is a photo message (banner + caption) — captions,
+            # not text, must be edited, and once we navigate away from it we
+            # switch to a fresh text message since other screens have no image.
+            if len(text) <= 1024:
+                await query.edit_message_caption(caption=text, parse_mode=ParseMode.MARKDOWN, reply_markup=markup)
+            else:
+                await query.message.delete()
+                await query.message.chat.send_message(text, parse_mode=ParseMode.MARKDOWN, reply_markup=markup)
+        else:
+            await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=markup)
     except BadRequest as e:
         if "not modified" not in str(e).lower():
             raise
