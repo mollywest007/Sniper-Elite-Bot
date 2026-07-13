@@ -13,12 +13,22 @@ from ..logger import logger
 _BANNER_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets", "banner.png")
 
 
-async def _send_banner(update: Update) -> None:
+async def _send_welcome_with_banner(update: Update, text: str, reply_markup) -> None:
     try:
         with open(_BANNER_PATH, "rb") as f:
-            await update.message.reply_photo(f)
+            await update.message.reply_photo(
+                f,
+                caption=text,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=reply_markup,
+            )
     except Exception as e:
-        logger.warning("Could not send banner: %s", e)
+        logger.warning("Could not send banner, falling back to text: %s", e)
+        await update.message.reply_text(
+            text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=reply_markup,
+        )
 
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -27,14 +37,9 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     registered_users.add(user.id)
     await touch_bot_user(user.id)
-    await _send_banner(update)
     balance = await get_wallet_balance()
     text = screen_welcome(balance)
-    await update.message.reply_text(
-        text,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=kb_main(user.id),
-    )
+    await _send_welcome_with_banner(update, text, kb_main(user.id))
     logger.info("User %s started bot", user.id)
 
 
