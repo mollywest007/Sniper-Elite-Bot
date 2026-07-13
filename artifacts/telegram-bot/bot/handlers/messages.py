@@ -7,7 +7,7 @@ from telegram.constants import ParseMode
 
 from ..database import get_wallet_balance, get_wallet, insert_sniper
 from ..keyboards import kb_main, kb_back, kb_sniper, kb, btn
-from ..screens import screen_withdraw_confirm, trunc, f_sol
+from ..screens import screen_withdraw_confirm, screen_token_search, trunc, f_sol
 from ..state import (
     registered_users, pending_flows, snipe_mode_active,
     is_rate_limited, get_sniper_config, tracked_wallet_address,
@@ -130,6 +130,22 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                     InlineKeyboardButton("❌ Cancel",  callback_data="withdraw:cancel"),
                 ]
             ]),
+        )
+        return
+
+    # ── Search Token ────────────────────────────────────────────────────────
+    if flow and flow["type"] == "search_token":
+        pending_flows.pop(user_id, None)
+        if not raw:
+            await message.reply_text("❌ Please enter a token address or symbol.", parse_mode=ParseMode.MARKDOWN)
+            return
+        await message.reply_text(
+            screen_token_search(raw),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=kb(
+                [btn("🔍 Search Again", "search:token")],
+                [btn("◀ Main Menu", "menu:home")],
+            ),
         )
         return
 

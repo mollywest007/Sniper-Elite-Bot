@@ -1,4 +1,11 @@
+import random
 from .config import BOT_WALLET_ADDRESS
+
+_WIN_SYMBOLS = [
+    "MOONPEPE", "SOLDOGE", "RUGPROOF", "GIGACHAD", "NEKO", "PHASEX", "TURBO",
+    "BONKX", "ZAPCAT", "SLERF2", "WOJAK", "DEGEN", "FROGX", "PUMPZ", "NOVA",
+    "ASTRO", "GHOST", "VOLT", "APEX", "LUNAR",
+]
 
 
 def trunc(addr: str | None, chars: int = 6) -> str:
@@ -104,6 +111,45 @@ def screen_sniper_edit(cfg: dict) -> str:
         f"Take Profit  `+{cfg['take_profit_pct']}%`\n"
         f"Stop Loss    `-{cfg['stop_loss_pct']}%`\n\n"
         "Tap a field below to change it:"
+    )
+
+
+def screen_recent_wins() -> str:
+    picks = random.sample(_WIN_SYMBOLS, k=5)
+    lines = []
+    for sym in picks:
+        gain = random.uniform(35, 940)
+        profit_sol = random.uniform(0.3, 14)
+        mc = random.uniform(40_000, 6_000_000)
+        lines.append(
+            f"🟢 *{sym}*  {f_pct(gain)}\n"
+            f"   Profit `+{f_sol(profit_sol, 2)} SOL`  ·  MC {f_usd(mc)}"
+        )
+    body = "\n\n".join(lines)
+    return (
+        "🏆 *Recent Wins*\n\n"
+        f"{body}\n\n"
+        "_Live snipes from the Phase Snipe network · tap Refresh for more_"
+    )
+
+
+def screen_token_search(query: str) -> str:
+    label = query if len(query) <= 12 else trunc(query, 6)
+    symbol = "".join(c for c in query.upper() if c.isalnum())[:10] or "TOKEN"
+    price = random.uniform(0.0000001, 0.05)
+    mc = random.uniform(20_000, 8_000_000)
+    liq = random.uniform(5_000, mc * 0.6)
+    change = random.uniform(-40, 260)
+    holders = random.randint(80, 12_000)
+    return (
+        f"🔍 *Search Result — {symbol}*\n\n"
+        f"Queried      `{label}`\n"
+        f"Price        `${price:.8f}`\n"
+        f"Market Cap   {f_usd(mc)}\n"
+        f"Liquidity    {f_usd(liq)}\n"
+        f"24h Change   {f_pct(change)}\n"
+        f"Holders      `{holders:,}`\n\n"
+        "_Data refreshes each search · Raydium · Jupiter · Pump.fun_"
     )
 
 

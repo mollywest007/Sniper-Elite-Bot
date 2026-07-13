@@ -18,7 +18,7 @@ from ..keyboards import (
 )
 from ..screens import (
     screen_wallet, screen_wallet_generated, screen_deposit, screen_sniper_panel, screen_sniper_edit,
-    screen_withdraw_confirm, trunc, f_sol, f_usd, f_pct,
+    screen_withdraw_confirm, screen_recent_wins, trunc, f_sol, f_usd, f_pct,
 )
 from ..state import (
     registered_users, alert_subscribers, wallet_generated, snipe_mode_active,
@@ -110,6 +110,26 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         balance = await sync_wallet_balance(_ADDR)
         from ..screens import screen_welcome
         return await _edit(query, screen_welcome(balance), kb_main(user_id))
+
+    # ── Search Token ──────────────────────────────────────────────────────
+    if data == "search:token":
+        pending_flows[user_id] = {"type": "search_token"}
+        return await _edit(
+            query,
+            "🔍 *Search Token*\n\nPaste a contract address or type a token symbol:",
+            kb_back("menu:home", "❌ Cancel"),
+        )
+
+    # ── Recent Wins ───────────────────────────────────────────────────────
+    if data == "wins:show":
+        await query.answer("🏆 Fetching latest wins...")
+        return await _edit(
+            query, screen_recent_wins(),
+            kb(
+                [btn("🔄 Refresh", "wins:show")],
+                [btn("◀ Main Menu", "menu:home")],
+            ),
+        )
 
     # ── Wallet ────────────────────────────────────────────────────────────
     if data == "wallet:show":
