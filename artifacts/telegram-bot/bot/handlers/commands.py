@@ -1,3 +1,4 @@
+import os
 from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
@@ -9,6 +10,16 @@ from ..state import registered_users, wallet_generated, is_rate_limited
 from ..config import ADMIN_USERNAME
 from ..logger import logger
 
+_BANNER_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets", "banner.png")
+
+
+async def _send_banner(update: Update) -> None:
+    try:
+        with open(_BANNER_PATH, "rb") as f:
+            await update.message.reply_photo(f)
+    except Exception as e:
+        logger.warning("Could not send banner: %s", e)
+
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
@@ -16,6 +27,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     registered_users.add(user.id)
     await touch_bot_user(user.id)
+    await _send_banner(update)
     balance = await get_wallet_balance()
     text = screen_welcome(balance)
     await update.message.reply_text(

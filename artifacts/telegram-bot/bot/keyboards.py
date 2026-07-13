@@ -11,16 +11,14 @@ def kb(*rows: list[InlineKeyboardButton]) -> InlineKeyboardMarkup:
 
 
 def kb_main(user_id: int | None = None) -> InlineKeyboardMarkup:
-    rows = []
-    if user_id is not None and user_id in wallet_generated:
-        rows.append([btn("💰 Wallet Panel", "wallet:panel")])
-    else:
-        rows.append([btn("🚀 Generate Wallet", "wallet:show")])
-    rows += [
-        [btn("📥 Deposit", "deposit:show"),      btn("📤 Withdraw", "withdraw:start")],
-        [btn("🚨 Alerts", "alerts:menu"),         btn("📈 Sniper Panel", "sniper:panel")],
-        [btn("📊 Portfolio", "portfolio"),         btn("⚙️ Settings", "settings:menu")],
-        [btn("🔒 Security", "security:menu"),      btn("❓ Help", "help:show")],
+    wallet_label = "💰 Wallet" if (user_id is not None and user_id in wallet_generated) else "🚀 Set Up Wallet"
+    wallet_target = "wallet:panel" if (user_id is not None and user_id in wallet_generated) else "wallet:show"
+    rows = [
+        [btn(wallet_label, wallet_target),          btn("🔄 Refresh", "menu:refresh")],
+        [btn("🎯 AI Sniper", "sniper:panel"),        btn("📋 Copy Trade", "copy:menu")],
+        [btn("🛒 Buy / Sell", "sniper:paste_ca"),    btn("📊 Positions", "portfolio")],
+        [btn("🚨 Alerts", "alerts:menu"),            btn("⚙️ Settings", "settings:menu")],
+        [btn("🔒 Security", "security:menu"),        btn("❓ Help", "help:show")],
         [btn("👑 Admin Panel", "admin:panel")],
     ]
     return InlineKeyboardMarkup(rows)

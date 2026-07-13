@@ -104,6 +104,13 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         from ..screens import screen_welcome
         return await _edit(query, screen_welcome(balance), kb_main(user_id))
 
+    if data == "menu:refresh":
+        await query.answer("🔄 Refreshing...")
+        from ..config import BOT_WALLET_ADDRESS as _ADDR
+        balance = await sync_wallet_balance(_ADDR)
+        from ..screens import screen_welcome
+        return await _edit(query, screen_welcome(balance), kb_main(user_id))
+
     # ── Wallet ────────────────────────────────────────────────────────────
     if data == "wallet:show":
         if user_id not in wallet_generated:
