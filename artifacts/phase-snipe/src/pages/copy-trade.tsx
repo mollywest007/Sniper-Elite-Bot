@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Copy, Play, Pause, Trash2, Loader2, Link2 } from "lucide-react";
+import { Copy, Play, Pause, Trash2, Loader2, Link2, Radar } from "lucide-react";
 import { CopyTradeInputMode, CopyTradeStatus } from "@workspace/api-client-react";
 import { formatSol, cn, truncateAddress } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -57,62 +57,76 @@ export default function CopyTrade() {
       }
     }, {
       onSuccess: () => {
-        toast({ title: "Copy trade configured" });
+        toast({ title: "Mirror protocol established" });
         form.reset();
         queryClient.invalidateQueries({ queryKey: getListCopyTradesQueryKey() });
       },
       onError: (err) => {
-        toast({ title: "Failed to create", description: String(err), variant: "destructive" });
+        toast({ title: "Connection failed", description: String(err), variant: "destructive" });
       }
     });
   }
 
   const getStatusBadge = (status: CopyTradeStatus) => {
     switch (status) {
-      case "active": return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-primary/20 text-primary border border-primary/50 animate-pulse">Active</span>;
-      case "paused": return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-500/20 text-amber-500 border border-amber-500/50">Paused</span>;
-      default: return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-muted/50 text-muted-foreground border border-border">Stopped</span>;
+      case "active": return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-primary/20 text-primary border border-primary/50 shadow-[0_0_10px_hsl(var(--primary)/0.2)]">Linked</span>;
+      case "paused": return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-warning/20 text-warning border border-warning/50">Suspended</span>;
+      default: return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-background border border-border text-muted-foreground">Severed</span>;
     }
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold font-mono tracking-tight uppercase">Copy Trade</h1>
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <h1 className="text-3xl font-bold font-mono tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/50 uppercase flex items-center gap-3">
+        <Copy className="h-6 w-6 text-primary" />
+        Mirror Protocol
+      </h1>
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-mono uppercase tracking-wider text-muted-foreground">Monitored Targets</h2>
-            <Button variant="outline" size="sm" className="h-8 font-mono text-xs" onClick={() => queryClient.invalidateQueries({ queryKey: getListCopyTradesQueryKey() })}>Refresh</Button>
+            <h2 className="text-xs font-mono uppercase tracking-widest text-muted-foreground pl-1">Network Links</h2>
+            <Button variant="outline" size="sm" className="h-8 font-mono text-xs tracking-widest uppercase border-border hover:bg-accent" onClick={() => queryClient.invalidateQueries({ queryKey: getListCopyTradesQueryKey() })}>Refresh Net</Button>
           </div>
           
           {isLoading ? (
             <div className="space-y-3">
-              <Skeleton className="h-24 w-full bg-muted/50 rounded-md" />
-              <Skeleton className="h-24 w-full bg-muted/50 rounded-md" />
+              <Skeleton className="h-28 w-full bg-card border-border rounded-xl" />
+              <Skeleton className="h-28 w-full bg-card border-border rounded-xl" />
             </div>
           ) : !copyTrades || copyTrades.length === 0 ? (
-            <div className="p-8 text-center text-sm font-mono text-muted-foreground border border-dashed border-border rounded-md">
-              No targets configured
+            <div className="p-16 text-center text-sm font-mono text-muted-foreground border border-dashed border-border rounded-xl bg-card/20 flex flex-col items-center gap-4">
+              <Radar className="h-12 w-12 text-muted-foreground/30 mb-2" />
+              <p className="font-mono text-sm font-bold text-muted-foreground uppercase tracking-widest">No Active Links</p>
+              <p className="font-mono text-xs text-muted-foreground/60">Initialize a new mirror connection via the panel →</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {copyTrades.map((ct) => (
-                <Card key={ct.id} className={cn("bg-card/30 border-border overflow-hidden", ct.status === 'active' && "border-primary/50")}>
-                  <div className="p-4 flex flex-col sm:flex-row justify-between gap-4">
+                <Card key={ct.id} className={cn("glass-panel overflow-hidden transition-all", ct.status === 'active' && "border-primary/40 shadow-[0_0_15px_-3px_hsl(var(--primary)/0.1)]")}>
+                  <div className="p-5 flex flex-col sm:flex-row justify-between gap-5">
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold font-mono text-sm">{ct.targetAlias || "Unnamed Target"}</span>
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="font-bold font-mono text-lg tracking-tight text-foreground">{ct.targetAlias || "Unnamed Node"}</span>
                         {getStatusBadge(ct.status)}
                       </div>
-                      <div className="text-xs text-muted-foreground font-mono mb-2 flex items-center gap-1">
+                      <div className="text-[10px] text-muted-foreground font-mono mb-4 flex items-center gap-1.5 bg-background inline-flex px-2 py-0.5 rounded border border-border">
                         <Link2 className="h-3 w-3" />
                         {truncateAddress(ct.targetAddress)}
                       </div>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-mono text-muted-foreground">
-                        <span className="bg-accent/50 px-2 py-0.5 rounded">Mode: <span className="text-foreground">{ct.mode}</span></span>
-                        <span>Amount: <span className="text-foreground font-bold">{formatSol(ct.amountSol)} SOL</span></span>
-                        <span>Trades: <span className="text-foreground">{ct.tradesCopied}</span></span>
+                      <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
+                        <div className="bg-background/50 rounded-lg p-2 border border-border/50">
+                          <div className="text-muted-foreground uppercase text-[9px] tracking-widest mb-0.5">Strategy</div>
+                          <div className="font-bold text-foreground capitalize">{ct.mode}</div>
+                        </div>
+                        <div className="bg-background/50 rounded-lg p-2 border border-border/50">
+                          <div className="text-muted-foreground uppercase text-[9px] tracking-widest mb-0.5">Commitment</div>
+                          <div className="font-bold text-primary">{formatSol(ct.amountSol)} SOL</div>
+                        </div>
+                        <div className="bg-background/50 rounded-lg p-2 border border-border/50">
+                          <div className="text-muted-foreground uppercase text-[9px] tracking-widest mb-0.5">Mirrored</div>
+                          <div className="font-bold text-foreground">{ct.tradesCopied} Txs</div>
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 sm:self-start">
@@ -120,19 +134,19 @@ export default function CopyTrade() {
                         <Button 
                           size="icon" 
                           variant="outline" 
-                          className="h-8 w-8 text-primary border-primary/20 hover:bg-primary/10 hover:border-primary/50"
+                          className="h-10 w-10 text-primary border-primary/30 hover:bg-primary/10"
                           onClick={() => {
                             startCopyTrade.mutate({ id: ct.id }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListCopyTradesQueryKey() }) });
                           }}
                           disabled={startCopyTrade.isPending}
                         >
-                          <Play className="h-4 w-4" />
+                          <Play className="h-4 w-4 ml-0.5" />
                         </Button>
                       ) : ct.status === "active" ? (
                         <Button 
                           size="icon" 
                           variant="outline" 
-                          className="h-8 w-8 text-amber-500 border-amber-500/20 hover:bg-amber-500/10 hover:border-amber-500/50"
+                          className="h-10 w-10 text-warning border-warning/30 hover:bg-warning/10"
                           onClick={() => {
                             pauseCopyTrade.mutate({ id: ct.id }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListCopyTradesQueryKey() }) });
                           }}
@@ -145,7 +159,7 @@ export default function CopyTrade() {
                       <Button 
                         size="icon" 
                         variant="ghost" 
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        className="h-10 w-10 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                         onClick={() => {
                           deleteCopyTrade.mutate({ id: ct.id }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListCopyTradesQueryKey() }) });
                         }}
@@ -155,6 +169,11 @@ export default function CopyTrade() {
                       </Button>
                     </div>
                   </div>
+                  {ct.status === "active" && (
+                    <div className="h-0.5 w-full bg-border overflow-hidden">
+                      <div className="h-full bg-primary animate-pulse w-full opacity-50" />
+                    </div>
+                  )}
                 </Card>
               ))}
             </div>
@@ -162,21 +181,23 @@ export default function CopyTrade() {
         </div>
 
         <div className="lg:col-span-1">
-          <Card className="bg-card/50 border-border sticky top-4">
-            <CardHeader className="p-4 border-b border-border/50">
-              <CardTitle className="text-sm font-mono uppercase tracking-wider text-muted-foreground">Add Target</CardTitle>
+          <Card className="glass-panel border-primary/20 sticky top-6">
+            <CardHeader className="p-6 border-b border-border bg-card/40">
+              <CardTitle className="text-xs font-mono uppercase tracking-widest text-primary flex items-center gap-2">
+                <Radar className="h-4 w-4" /> Establish Link
+              </CardTitle>
             </CardHeader>
-            <CardContent className="p-4">
+            <CardContent className="p-6">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                   <FormField
                     control={form.control}
                     name="targetAddress"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="font-mono text-xs uppercase">Wallet Address</FormLabel>
+                        <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Target Hash</FormLabel>
                         <FormControl>
-                          <Input placeholder="Target address..." className="font-mono bg-background" {...field} />
+                          <Input placeholder="Wallet address..." className="font-mono bg-background/50 h-12 border-border focus:border-primary/50 text-[10px] sm:text-xs" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -188,24 +209,24 @@ export default function CopyTrade() {
                     name="targetAlias"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="font-mono text-xs uppercase">Alias (Optional)</FormLabel>
+                        <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Node Alias (Opt)</FormLabel>
                         <FormControl>
-                          <Input placeholder="Whale #1" className="font-mono bg-background" {...field} />
+                          <Input placeholder="Alpha Whale" className="font-mono bg-background/50 h-12 border-border focus:border-primary/50" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-background/30 p-4 rounded-xl border border-border space-y-4">
                     <FormField
                       control={form.control}
                       name="amountSol"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="font-mono text-xs uppercase">Amount</FormLabel>
+                          <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Commitment (SOL)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="any" className="font-mono bg-background" {...field} />
+                            <Input type="number" step="any" className="font-mono bg-background h-12 text-primary font-bold text-lg border-border focus:border-primary/50" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -217,13 +238,13 @@ export default function CopyTrade() {
                       name="mode"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="font-mono text-xs uppercase">Mode</FormLabel>
+                          <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Strategy</FormLabel>
                           <FormControl>
                             <select 
-                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+                              className="flex h-12 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm focus-visible:ring-1 focus-visible:ring-primary/50 font-mono transition-colors"
                               {...field}
                             >
-                              <option value="fixed">Fixed</option>
+                              <option value="fixed">Fixed Size</option>
                               <option value="proportional">Proportional</option>
                             </select>
                           </FormControl>
@@ -235,13 +256,13 @@ export default function CopyTrade() {
 
                   <Button 
                     type="submit" 
-                    className="w-full h-12 mt-4 font-mono font-bold tracking-wider bg-primary text-primary-foreground hover:bg-primary/90"
+                    className="w-full h-14 mt-6 font-mono text-sm font-bold tracking-widest bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-[0_0_20px_-5px_hsl(var(--primary)/0.5)] transition-all uppercase"
                     disabled={createCopyTrade.isPending}
                   >
                     {createCopyTrade.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                       <>
-                        <Copy className="mr-2 h-5 w-5" />
-                        START COPYING
+                        <Copy className="mr-2 h-4 w-4" />
+                        Init Protocol
                       </>
                     )}
                   </Button>

@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { ShoppingCart, Loader2 } from "lucide-react";
+import { ShoppingCart, Loader2, Zap } from "lucide-react";
 import { TradeInputType, TradeInputPriorityFee } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -50,7 +50,6 @@ export default function Buy() {
       onSuccess: () => {
         toast({ title: "Buy order submitted", description: `Purchasing for ${values.amountSol} SOL` });
         form.reset({ ...values, contractAddress: "" });
-        // Invalidate relevant queries
       },
       onError: (err) => {
         toast({ title: "Failed to execute buy", description: String(err), variant: "destructive" });
@@ -59,67 +58,74 @@ export default function Buy() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <h1 className="text-3xl font-bold font-mono tracking-tight uppercase">Buy Token</h1>
+    <div className="space-y-8 max-w-3xl mx-auto animate-in fade-in duration-500">
+      <h1 className="text-3xl font-bold font-mono tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-success to-success/50 uppercase flex items-center gap-3">
+        <ShoppingCart className="h-6 w-6 text-success" />
+        Market Buy
+      </h1>
       
-      <Card className="bg-card/50 border-border">
-        <CardHeader className="p-6 border-b border-border/50">
-          <CardTitle className="text-sm font-mono uppercase tracking-wider text-muted-foreground">Quick Buy</CardTitle>
+      <Card className="glass-panel border-success/20 overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-success/5 blur-3xl -z-10 rounded-full" />
+        <CardHeader className="p-8 border-b border-border bg-card/40">
+          <CardTitle className="text-xs font-mono uppercase tracking-widest text-success flex items-center gap-2">
+            <Zap className="h-4 w-4" /> Instant Execution
+          </CardTitle>
         </CardHeader>
-        <CardContent className="p-6">
+        <CardContent className="p-8">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
               <FormField
                 control={form.control}
                 name="contractAddress"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-mono text-xs uppercase">Contract Address</FormLabel>
+                    <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2 block">Target Contract Address</FormLabel>
                     <FormControl>
-                      <Input placeholder="Token address..." className="font-mono bg-background" {...field} />
+                      <Input placeholder="Paste Solana token address..." className="font-mono bg-background/50 h-14 text-base border-border focus:border-success/50 transition-colors" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="amountSol"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="font-mono text-xs uppercase">Amount (SOL)</FormLabel>
-                    <FormControl>
-                      <Input type="number" step="any" placeholder="0.00" className="font-mono bg-background" {...field} />
-                    </FormControl>
-                    <div className="grid grid-cols-5 gap-2 mt-2">
-                      {PRESET_AMOUNTS.map(amount => (
-                        <Button
-                          key={amount}
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="font-mono text-xs h-8 border-border"
-                          onClick={() => form.setValue("amountSol", amount)}
-                        >
-                          {amount}
-                        </Button>
-                      ))}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="bg-background/30 p-6 rounded-xl border border-border space-y-6">
+                <FormField
+                  control={form.control}
+                  name="amountSol"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2 block">Position Size (SOL)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="any" placeholder="0.00" className="font-mono bg-background h-14 text-xl font-bold text-success border-border focus:border-success/50" {...field} />
+                      </FormControl>
+                      <div className="grid grid-cols-5 gap-3 mt-4">
+                        {PRESET_AMOUNTS.map(amount => (
+                          <Button
+                            key={amount}
+                            type="button"
+                            variant="outline"
+                            className="font-mono text-xs font-bold h-10 border-border bg-background hover:bg-success/10 hover:border-success/30 hover:text-success transition-colors"
+                            onClick={() => form.setValue("amountSol", amount)}
+                          >
+                            {amount}
+                          </Button>
+                        ))}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
                   name="slippagePercent"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase">Slippage (%)</FormLabel>
+                      <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2 block">Slippage Tolerance (%)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.1" className="font-mono bg-background" {...field} />
+                        <Input type="number" step="0.1" className="font-mono bg-background/50 h-12 border-border focus:border-success/50" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -131,16 +137,16 @@ export default function Buy() {
                   name="priorityFee"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase">Priority Fee</FormLabel>
+                      <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2 block">Network Priority</FormLabel>
                       <FormControl>
                         <select 
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+                          className="flex h-12 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-success/50 disabled:cursor-not-allowed disabled:opacity-50 font-mono transition-colors"
                           {...field}
                         >
-                          <option value="auto">Auto</option>
+                          <option value="auto">Auto (Dynamic)</option>
                           <option value="low">Low</option>
                           <option value="medium">Medium</option>
-                          <option value="high">High</option>
+                          <option value="high">High (Fastest)</option>
                         </select>
                       </FormControl>
                       <FormMessage />
@@ -151,13 +157,13 @@ export default function Buy() {
 
               <Button 
                 type="submit" 
-                className="w-full h-12 mt-4 font-mono font-bold tracking-wider bg-primary text-primary-foreground hover:bg-primary/90"
+                className="w-full h-16 mt-4 font-mono text-base font-bold tracking-widest bg-success text-success-foreground hover:bg-success/90 hover:shadow-[0_0_20px_-5px_hsl(var(--success)/0.5)] transition-all uppercase"
                 disabled={executeTrade.isPending}
               >
-                {executeTrade.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+                {executeTrade.isPending ? <Loader2 className="h-6 w-6 animate-spin" /> : (
                   <>
-                    <ShoppingCart className="mr-2 h-5 w-5" />
-                    EXECUTE BUY
+                    <ShoppingCart className="mr-3 h-5 w-5" />
+                    Confirm Buy Order
                   </>
                 )}
               </Button>

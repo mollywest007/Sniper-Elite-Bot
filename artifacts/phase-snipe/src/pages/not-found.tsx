@@ -1,19 +1,31 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
+import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md mx-4">
-        <CardContent className="pt-6">
-          <div className="flex mb-4 gap-2">
-            <AlertCircle className="h-8 w-8 text-red-500" />
-            <h1 className="text-2xl font-bold text-gray-900">404 Page Not Found</h1>
+    <div className="min-h-[80vh] w-full flex items-center justify-center animate-in fade-in duration-500">
+      <Card className="w-full max-w-md mx-4 glass-panel border-destructive/20 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-destructive/10 blur-3xl -z-10 rounded-full" />
+        <CardContent className="pt-10 pb-8 px-8 text-center flex flex-col items-center gap-4">
+          <div className="p-4 rounded-full bg-destructive/10 border border-destructive/20 mb-2">
+            <AlertCircle className="h-8 w-8 text-destructive" />
           </div>
+          
+          <h1 className="text-2xl font-mono font-bold tracking-widest uppercase text-foreground">
+            System Error 404
+          </h1>
 
-          <p className="mt-4 text-sm text-gray-600">
-            Did you forget to add the page to the router?
+          <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest leading-relaxed">
+            The requested route does not exist in the current router configuration.
           </p>
+
+          <Link href="/">
+            <Button variant="outline" className="mt-6 font-mono text-xs font-bold tracking-widest uppercase h-10 px-6 border-border hover:bg-accent">
+              Return to Core
+            </Button>
+          </Link>
         </CardContent>
       </Card>
     </div>

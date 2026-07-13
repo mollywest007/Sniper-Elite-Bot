@@ -12,16 +12,17 @@ import {
   Settings,
   Bell,
   ChevronLeft,
+  Terminal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useListNotifications } from "@workspace/api-client-react";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: Home },
-  { href: "/buy", label: "Buy", icon: ShoppingCart },
-  { href: "/sell", label: "Sell", icon: TrendingDown },
-  { href: "/snipe", label: "Snipe", icon: Crosshair },
+  { href: "/", label: "Command Center", icon: Home },
+  { href: "/buy", label: "Buy Token", icon: ShoppingCart },
+  { href: "/sell", label: "Sell Token", icon: TrendingDown },
+  { href: "/snipe", label: "Sniper Hub", icon: Crosshair },
   { href: "/portfolio", label: "Portfolio", icon: Briefcase },
   { href: "/wallets", label: "Wallets", icon: Wallet },
   { href: "/copy-trade", label: "Copy Trade", icon: Copy },
@@ -30,7 +31,6 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-// Module-level history stack so it persists across re-renders / Layout remounts
 const navHistory: string[] = [];
 let suppressNextPush = false;
 
@@ -40,27 +40,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const unreadCount = notifications?.filter((n) => !n.isRead).length || 0;
   const isRoot = location === "/";
 
-  // Track navigation history
   useEffect(() => {
     if (suppressNextPush) {
       suppressNextPush = false;
       return;
     }
-    // Don't push duplicate consecutive entries
     if (navHistory[navHistory.length - 1] !== location) {
       navHistory.push(location);
     }
   }, [location]);
 
   function goBack() {
-    // Pop the current page off the stack
     if (navHistory.length > 1) {
       navHistory.pop();
       const prev = navHistory[navHistory.length - 1];
       suppressNextPush = true;
       navigate(prev);
     } else {
-      // Fallback to dashboard
       suppressNextPush = true;
       navigate("/");
     }
@@ -69,23 +65,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden font-sans">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-72 border-r border-border bg-sidebar shrink-0">
-        <div className="p-5 border-b border-border flex items-center justify-between">
-          <div className="flex items-center gap-2.5 text-primary">
-            <Crosshair className="h-6 w-6" />
-            <span className="font-bold tracking-wider uppercase text-lg">Phase Snipe</span>
+      <aside className="hidden md:flex flex-col w-[260px] border-r border-border glass-panel shrink-0 relative z-20">
+        <div className="p-6 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-3 text-primary">
+            <Terminal className="h-6 w-6 stroke-[1.5]" />
+            <span className="font-bold font-mono tracking-widest uppercase text-lg text-glow">Phase</span>
           </div>
           <Link
             href="/notifications"
-            className="relative p-2 text-muted-foreground hover:text-foreground transition-colors rounded-full hover:bg-accent"
+            className="relative p-2 text-muted-foreground hover:text-primary transition-colors rounded-md hover:bg-primary/10"
           >
-            <Bell className="h-5 w-5" />
+            <Bell className="h-5 w-5 stroke-[1.5]" />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-primary animate-pulse" />
+              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary animate-pulse shadow-[0_0_5px_var(--primary)]" />
             )}
           </Link>
         </div>
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+        <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -96,62 +92,66 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors",
+                  "flex items-center gap-3 px-4 py-3 rounded-md text-sm font-mono tracking-wide transition-all group",
                   isActive
-                    ? "bg-sidebar-primary/10 text-primary"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    ? "bg-primary/10 text-primary border border-primary/20 shadow-[inset_4px_0_0_0_hsl(var(--primary))]"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground border border-transparent"
                 )}
               >
                 <Icon
                   className={cn(
-                    "h-5 w-5 shrink-0",
-                    isActive ? "text-primary" : "text-muted-foreground"
+                    "h-4 w-4 stroke-[1.5] transition-colors",
+                    isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
                   )}
                 />
-                <span className="text-sm">{item.label}</span>
+                <span>{item.label}</span>
               </Link>
             );
           })}
         </nav>
+        <div className="p-4 border-t border-border text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest text-center">
+          Terminal Ready • v1.0.4
+        </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* Top Bar (desktop + mobile) */}
-        <header className="flex items-center gap-3 px-5 py-3 border-b border-border bg-sidebar/80 backdrop-blur-sm shrink-0 z-10 min-h-[56px]">
+      <main className="flex-1 flex flex-col h-full overflow-hidden relative z-10">
+        {/* Top Bar (Mobile + Back Button) */}
+        <header className="flex items-center gap-3 px-6 py-4 border-b border-border glass-panel shrink-0 z-10 min-h-[64px]">
           {!isRoot ? (
             <button
               onClick={goBack}
-              className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md px-2 py-1.5 hover:bg-accent"
+              className="flex items-center gap-2 text-xs font-mono font-medium text-muted-foreground hover:text-primary transition-colors rounded-md px-3 py-2 hover:bg-primary/10 border border-transparent hover:border-primary/20"
             >
               <ChevronLeft className="h-4 w-4" />
-              Back
+              BACK
             </button>
           ) : (
-            /* Mobile-only logo when on root */
             <div className="md:hidden flex items-center gap-2 text-primary">
-              <Crosshair className="h-5 w-5" />
-              <span className="font-bold tracking-wider uppercase text-base">Phase Snipe</span>
+              <Terminal className="h-5 w-5 stroke-[1.5]" />
+              <span className="font-bold font-mono tracking-widest uppercase text-base text-glow">Phase</span>
             </div>
           )}
           <div className="flex-1" />
           <Link
             href="/notifications"
-            className="relative p-2 text-muted-foreground hover:text-foreground transition-colors rounded-full hover:bg-accent md:hidden"
+            className="relative p-2 text-muted-foreground hover:text-primary transition-colors rounded-md hover:bg-primary/10 md:hidden"
           >
-            <Bell className="h-5 w-5" />
+            <Bell className="h-5 w-5 stroke-[1.5]" />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary animate-pulse" />
+              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary animate-pulse shadow-[0_0_5px_var(--primary)]" />
             )}
           </Link>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-5 md:p-8 pb-24 md:pb-8">
-          <div className="w-full h-full">{children}</div>
+        <div className="flex-1 overflow-y-auto p-6 md:p-10 pb-24 md:pb-10 relative">
+          {/* subtle radial gradient overlay for depth */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background/0 to-background/0 pointer-events-none -z-10" />
+          <div className="w-full max-w-7xl mx-auto h-full">{children}</div>
         </div>
 
         {/* Mobile Bottom Nav */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-border bg-sidebar/95 backdrop-blur-md pb-safe z-50 flex items-center justify-around px-2 py-2">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-border glass-panel pb-safe z-50 flex items-center justify-around px-2 py-2">
           {navItems.slice(0, 5).map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -162,14 +162,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center gap-1 p-2 rounded-md min-w-[64px]",
+                  "flex flex-col items-center gap-1.5 p-2 rounded-md min-w-[64px] transition-colors",
                   isActive
                     ? "text-primary"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                <Icon className="h-5 w-5" />
-                <span className="text-[10px] font-medium">{item.label}</span>
+                <Icon className="h-5 w-5 stroke-[1.5]" />
+                <span className="text-[9px] font-mono tracking-wider uppercase">{item.label.split(' ')[0]}</span>
               </Link>
             );
           })}

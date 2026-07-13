@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
-import { Settings as SettingsIcon, Save, Loader2, Shield, Bell } from "lucide-react";
+import { Settings as SettingsIcon, Save, Loader2, Shield, Bell, Zap } from "lucide-react";
 import { SettingsUpdateDefaultPriorityFee } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -88,11 +88,11 @@ export default function Settings() {
       }
     }, {
       onSuccess: () => {
-        toast({ title: "Settings updated successfully" });
+        toast({ title: "Configuration Synced" });
         queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
       },
       onError: (err) => {
-        toast({ title: "Failed to update settings", description: String(err), variant: "destructive" });
+        toast({ title: "Sync failed", description: String(err), variant: "destructive" });
       }
     });
   }
@@ -106,25 +106,29 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold font-mono tracking-tight uppercase">Settings</h1>
+    <div className="space-y-8 animate-in fade-in duration-500 max-w-4xl mx-auto">
+      <h1 className="text-3xl font-bold font-mono tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/50 uppercase flex items-center gap-3">
+        <SettingsIcon className="h-6 w-6 text-primary" />
+        System Config
+      </h1>
       
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <Card className="bg-card/30 border-border">
-            <CardHeader className="p-4 border-b border-border/50 flex flex-row items-center gap-2">
-              <SettingsIcon className="h-5 w-5 text-muted-foreground" />
-              <CardTitle className="text-sm font-mono uppercase tracking-wider text-foreground">Trading Defaults</CardTitle>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          <Card className="glass-panel">
+            <CardHeader className="p-6 border-b border-border bg-card/40">
+              <CardTitle className="text-xs font-mono uppercase tracking-widest text-foreground flex items-center gap-3">
+                <Zap className="h-4 w-4 text-primary" /> Core Trading Directives
+              </CardTitle>
             </CardHeader>
-            <CardContent className="p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
               <FormField
                 control={form.control}
                 name="defaultBuyAmountSol"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-mono text-xs uppercase text-muted-foreground">Default Buy Amount (SOL)</FormLabel>
+                    <FormLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-2 block">Default Entry Size (SOL)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="any" className="font-mono bg-background" {...field} />
+                      <Input type="number" step="any" className="font-mono bg-background/50 h-12 text-primary font-bold border-border focus:border-primary/50" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -136,9 +140,9 @@ export default function Settings() {
                 name="defaultSlippagePercent"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-mono text-xs uppercase text-muted-foreground">Default Slippage (%)</FormLabel>
+                    <FormLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-2 block">Default Tolerance (%)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.1" className="font-mono bg-background" {...field} />
+                      <Input type="number" step="0.1" className="font-mono bg-background/50 h-12 border-border focus:border-primary/50" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -150,16 +154,16 @@ export default function Settings() {
                 name="defaultPriorityFee"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-mono text-xs uppercase text-muted-foreground">Priority Fee</FormLabel>
+                    <FormLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-2 block">Network Tax Layer</FormLabel>
                     <FormControl>
                       <select 
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background font-mono"
+                        className="flex h-12 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm focus-visible:ring-1 focus-visible:ring-primary/50 font-mono transition-colors"
                         {...field}
                       >
-                        <option value="auto">Auto</option>
+                        <option value="auto">Auto (Dynamic)</option>
                         <option value="low">Low</option>
                         <option value="medium">Medium</option>
-                        <option value="high">High</option>
+                        <option value="high">High (Maximum)</option>
                       </select>
                     </FormControl>
                     <FormMessage />
@@ -171,13 +175,13 @@ export default function Settings() {
                 control={form.control}
                 name="autoApprove"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 bg-background/50">
-                    <div className="space-y-0.5">
-                      <FormLabel className="font-mono text-xs uppercase text-muted-foreground">Auto Approve TXs</FormLabel>
-                      <p className="text-[10px] font-mono text-muted-foreground">Skip confirmation modals for faster execution</p>
+                  <FormItem className="flex flex-row items-center justify-between rounded-xl border border-border p-4 bg-background/30 mt-6">
+                    <div className="space-y-1">
+                      <FormLabel className="font-mono text-xs uppercase tracking-widest text-foreground">Zero-Click Exec</FormLabel>
+                      <p className="text-[10px] font-mono text-muted-foreground">Bypass manual confirmations</p>
                     </div>
                     <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      <Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-primary" />
                     </FormControl>
                   </FormItem>
                 )}
@@ -185,19 +189,20 @@ export default function Settings() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card/30 border-border">
-            <CardHeader className="p-4 border-b border-border/50 flex flex-row items-center gap-2">
-              <Bell className="h-5 w-5 text-muted-foreground" />
-              <CardTitle className="text-sm font-mono uppercase tracking-wider text-foreground">Notifications</CardTitle>
+          <Card className="glass-panel">
+            <CardHeader className="p-6 border-b border-border bg-card/40">
+              <CardTitle className="text-xs font-mono uppercase tracking-widest text-foreground flex items-center gap-3">
+                <Bell className="h-4 w-4 text-primary" /> Telemetry routing
+              </CardTitle>
             </CardHeader>
-            <CardContent className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
               <FormField
                 control={form.control}
                 name="notifyBuy"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 bg-background/50">
-                    <FormLabel className="font-mono text-xs uppercase text-muted-foreground">Buy Alerts</FormLabel>
-                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-4 bg-background/30">
+                    <FormLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Acquisition Logs</FormLabel>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-primary" /></FormControl>
                   </FormItem>
                 )}
               />
@@ -205,9 +210,9 @@ export default function Settings() {
                 control={form.control}
                 name="notifySell"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 bg-background/50">
-                    <FormLabel className="font-mono text-xs uppercase text-muted-foreground">Sell Alerts</FormLabel>
-                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-4 bg-background/30">
+                    <FormLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Liquidation Logs</FormLabel>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-primary" /></FormControl>
                   </FormItem>
                 )}
               />
@@ -215,9 +220,9 @@ export default function Settings() {
                 control={form.control}
                 name="notifySniper"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 bg-background/50">
-                    <FormLabel className="font-mono text-xs uppercase text-muted-foreground">Sniper Triggers</FormLabel>
-                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-4 bg-background/30">
+                    <FormLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Sniper Events</FormLabel>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-primary" /></FormControl>
                   </FormItem>
                 )}
               />
@@ -225,29 +230,30 @@ export default function Settings() {
                 control={form.control}
                 name="notifyWallet"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 bg-background/50">
-                    <FormLabel className="font-mono text-xs uppercase text-muted-foreground">Wallet Alerts</FormLabel>
-                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-4 bg-background/30">
+                    <FormLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Wallet Ping</FormLabel>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-primary" /></FormControl>
                   </FormItem>
                 )}
               />
             </CardContent>
           </Card>
 
-          <Card className="bg-card/30 border-border">
-            <CardHeader className="p-4 border-b border-border/50 flex flex-row items-center gap-2">
-              <Shield className="h-5 w-5 text-muted-foreground" />
-              <CardTitle className="text-sm font-mono uppercase tracking-wider text-foreground">Security</CardTitle>
+          <Card className="glass-panel">
+            <CardHeader className="p-6 border-b border-border bg-card/40">
+              <CardTitle className="text-xs font-mono uppercase tracking-widest text-foreground flex items-center gap-3">
+                <Shield className="h-4 w-4 text-primary" /> Sec-Protocol
+              </CardTitle>
             </CardHeader>
-            <CardContent className="p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
               <FormField
                 control={form.control}
                 name="sessionTimeoutMinutes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-mono text-xs uppercase text-muted-foreground">Session Timeout (Minutes)</FormLabel>
+                    <FormLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground mb-2 block">Token TTL (Minutes)</FormLabel>
                     <FormControl>
-                      <Input type="number" min="1" className="font-mono bg-background" {...field} />
+                      <Input type="number" min="1" className="font-mono bg-background/50 h-12 border-border focus:border-primary/50" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -258,25 +264,25 @@ export default function Settings() {
                 control={form.control}
                 name="pinLockEnabled"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border p-3 bg-background/50 h-[68px]">
-                    <FormLabel className="font-mono text-xs uppercase text-muted-foreground">Require PIN</FormLabel>
-                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                  <FormItem className="flex flex-row items-center justify-between rounded-xl border border-border p-4 bg-background/30 mt-6 h-12">
+                    <FormLabel className="font-mono text-[10px] uppercase tracking-widest text-foreground">Hardware Lock</FormLabel>
+                    <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-primary" /></FormControl>
                   </FormItem>
                 )}
               />
             </CardContent>
           </Card>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end pt-4 pb-12">
             <Button 
               type="submit" 
-              className="h-12 px-8 font-mono font-bold tracking-wider bg-primary text-primary-foreground hover:bg-primary/90"
+              className="h-16 px-12 font-mono text-sm font-bold tracking-widest uppercase bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_-5px_hsl(var(--primary)/0.4)] transition-all"
               disabled={updateSettings.isPending || !form.formState.isDirty}
             >
               {updateSettings.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                 <>
-                  <Save className="mr-2 h-5 w-5" />
-                  SAVE CONFIG
+                  <Save className="mr-3 h-4 w-4" />
+                  Flash Config
                 </>
               )}
             </Button>

@@ -1,7 +1,7 @@
 import { useListPositions, getListPositionsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Briefcase } from "lucide-react";
+import { Briefcase, ArrowUpRight, ArrowDownRight, TrendingUp } from "lucide-react";
 import { formatSol, formatUsd, formatPercent, cn, truncateAddress } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
@@ -12,71 +12,78 @@ export default function Portfolio() {
   const totalValue = positions?.reduce((acc, pos) => acc + pos.valueSol, 0) || 0;
   const totalPnlSol = positions?.reduce((acc, pos) => acc + pos.pnlSol, 0) || 0;
   
-  // Safe calculation for total pnl percent to avoid division by zero
   const totalEntryValue = totalValue - totalPnlSol;
   const totalPnlPercent = totalEntryValue > 0 ? (totalPnlSol / totalEntryValue) * 100 : 0;
 
-  // Sort by PnL desc
   const sortedPositions = positions ? [...positions].sort((a, b) => b.pnlPercent - a.pnlPercent) : [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold font-mono tracking-tight uppercase">Portfolio</h1>
+        <h1 className="text-3xl font-bold font-mono tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-white to-white/60 uppercase flex items-center gap-3">
+          <Briefcase className="h-6 w-6 text-primary" />
+          Portfolio
+        </h1>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-card/50 border-border md:col-span-2">
-          <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div>
-              <div className="text-sm font-mono uppercase tracking-wider text-muted-foreground mb-1">Total Position Value</div>
-              <div className="text-4xl font-mono font-bold text-foreground">
-                {formatSol(totalValue)} <span className="text-lg text-muted-foreground">SOL</span>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="glass-panel md:col-span-2 relative overflow-hidden">
+          <div className="absolute -right-10 -top-10 text-primary/5">
+            <TrendingUp className="h-48 w-48" />
+          </div>
+          <CardContent className="p-8 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="z-10">
+              <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2">Total Position Value</div>
+              <div className="text-5xl font-mono font-bold text-foreground">
+                {formatSol(totalValue)} <span className="text-xl text-primary opacity-80">SOL</span>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-sm font-mono uppercase tracking-wider text-muted-foreground mb-1">Total PnL</div>
+            <div className="text-right z-10 w-full md:w-auto">
+              <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2">Total Return</div>
               <div className={cn(
-                "text-2xl font-mono font-bold flex items-baseline justify-end gap-2",
-                totalPnlSol >= 0 ? "text-primary" : "text-destructive"
+                "text-3xl font-mono font-bold flex flex-row md:flex-col items-center md:items-end justify-between md:justify-end gap-2",
+                totalPnlSol >= 0 ? "text-success" : "text-destructive"
               )}>
-                {totalPnlSol >= 0 ? "+" : ""}{formatSol(totalPnlSol)} SOL
-                <span className="text-sm opacity-80 bg-background/50 px-2 py-0.5 rounded border border-current/20">
-                  {formatPercent(totalPnlPercent)}
+                <div className="flex items-center gap-1">
+                  {totalPnlSol >= 0 ? <ArrowUpRight className="h-6 w-6" /> : <ArrowDownRight className="h-6 w-6" />}
+                  {formatSol(Math.abs(totalPnlSol))} SOL
+                </div>
+                <span className="text-sm bg-background/80 backdrop-blur px-3 py-1 rounded border border-current/20">
+                  {totalPnlSol >= 0 ? "+" : ""}{formatPercent(totalPnlPercent)}
                 </span>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-card/50 border-border md:col-span-1 flex items-center justify-center p-6">
-          <div className="text-center">
-            <div className="text-sm font-mono uppercase tracking-wider text-muted-foreground mb-2">Open Positions</div>
-            <div className="text-4xl font-mono font-bold">{positions?.length || 0}</div>
+        <Card className="glass-panel md:col-span-1 flex flex-col justify-center p-8">
+          <div className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-4">Active Positions</div>
+          <div className="text-5xl font-mono font-bold text-primary">{positions?.length || 0}</div>
+          <div className="mt-4 pt-4 border-t border-border flex justify-between text-xs font-mono text-muted-foreground">
+            <span>Health</span>
+            <span className="text-success">Optimal</span>
           </div>
         </Card>
       </div>
 
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-mono uppercase tracking-wider text-muted-foreground">Active Positions</h2>
-        </div>
+        <h2 className="text-sm font-mono uppercase tracking-widest text-muted-foreground pl-1">Holdings</h2>
         
         {isLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-16 w-full bg-muted/50 rounded-md" />
-            <Skeleton className="h-16 w-full bg-muted/50 rounded-md" />
-            <Skeleton className="h-16 w-full bg-muted/50 rounded-md" />
+          <div className="space-y-3">
+            <Skeleton className="h-20 w-full bg-card border-border rounded-xl" />
+            <Skeleton className="h-20 w-full bg-card border-border rounded-xl" />
+            <Skeleton className="h-20 w-full bg-card border-border rounded-xl" />
           </div>
         ) : sortedPositions.length === 0 ? (
-          <div className="p-12 text-center border border-dashed border-border rounded-md bg-card/10 flex flex-col items-center gap-4">
-            <Briefcase className="h-12 w-12 text-muted-foreground/50" />
+          <div className="p-16 text-center border border-dashed border-border rounded-xl bg-card/20 flex flex-col items-center gap-5">
+            <Briefcase className="h-16 w-16 text-muted-foreground/30" />
             <div>
-              <div className="font-mono font-bold">No open positions</div>
-              <div className="text-sm font-mono text-muted-foreground mt-1">Execute a buy or arm a sniper to get started</div>
+              <div className="font-mono text-lg font-bold">No Active Holdings</div>
+              <div className="text-sm font-mono text-muted-foreground mt-2">Execute a buy or arm a sniper to get started.</div>
             </div>
             <Link href="/buy">
-              <Button className="font-mono mt-2">Go to Buy</Button>
+              <Button className="font-mono mt-4 font-bold tracking-widest uppercase h-12 px-8">Execute Buy</Button>
             </Link>
           </div>
         ) : (
@@ -84,42 +91,39 @@ export default function Portfolio() {
             {sortedPositions.map((pos) => (
               <div 
                 key={pos.id} 
-                className="p-4 rounded-md border border-border bg-card/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-card/60 transition-colors"
+                className="p-5 rounded-xl border border-border bg-card/40 backdrop-blur flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:bg-card/80 transition-colors group"
               >
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold font-mono text-lg">{pos.tokenSymbol}</span>
-                    <span className="text-xs text-muted-foreground font-mono bg-accent/50 px-2 py-0.5 rounded">
+                <div className="flex flex-col gap-2 flex-1">
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold font-mono text-xl tracking-tight text-foreground">{pos.tokenSymbol}</span>
+                    <span className="text-[10px] text-muted-foreground font-mono bg-background px-2 py-1 rounded border border-border">
                       {truncateAddress(pos.contractAddress)}
                     </span>
                   </div>
-                  <div className="text-xs font-mono text-muted-foreground">
-                    {pos.amountTokens.toLocaleString()} tokens @ {formatSol(pos.entryPriceSol)} SOL
-                  </div>
-                  <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground mt-1">
-                    <span>MC: {formatUsd(pos.marketCapUsd)}</span>
-                    <span>Liq: {formatUsd(pos.liquidityUsd)}</span>
+                  <div className="text-xs font-mono text-muted-foreground flex items-center gap-3">
+                    <span className="bg-background px-2 py-0.5 rounded text-foreground/80">{pos.amountTokens.toLocaleString()} tokens</span>
+                    <span>Entry: <span className="text-foreground">{formatSol(pos.entryPriceSol)} SOL</span></span>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between sm:justify-end gap-6 sm:w-1/2">
+                <div className="flex items-center justify-between sm:justify-end gap-8 sm:w-1/2">
                   <div className="text-right">
-                    <div className="text-xs font-mono uppercase text-muted-foreground">Current Value</div>
-                    <div className="font-mono font-bold">{formatSol(pos.valueSol)} SOL</div>
+                    <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">Value</div>
+                    <div className="font-mono font-bold text-lg text-foreground">{formatSol(pos.valueSol)} SOL</div>
                   </div>
                   
-                  <div className="text-right min-w[80px]">
-                    <div className="text-xs font-mono uppercase text-muted-foreground">PnL</div>
+                  <div className="text-right min-w-[90px]">
+                    <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">PnL</div>
                     <div className={cn(
-                      "font-mono font-bold text-sm",
-                      pos.pnlPercent >= 0 ? "text-primary" : "text-destructive"
+                      "font-mono font-bold text-lg",
+                      pos.pnlPercent >= 0 ? "text-success" : "text-destructive"
                     )}>
-                      {formatPercent(pos.pnlPercent)}
+                      {pos.pnlPercent >= 0 ? "+" : ""}{formatPercent(pos.pnlPercent)}
                     </div>
                   </div>
 
                   <Link href="/sell">
-                    <Button variant="outline" size="sm" className="font-mono text-xs h-8 ml-2 border-destructive/30 hover:border-destructive/60 hover:bg-destructive/10 text-destructive">
+                    <Button variant="outline" className="font-mono text-xs font-bold tracking-widest uppercase h-10 border-destructive/30 hover:border-destructive hover:bg-destructive/10 text-destructive bg-destructive/5 transition-all">
                       Sell
                     </Button>
                   </Link>
