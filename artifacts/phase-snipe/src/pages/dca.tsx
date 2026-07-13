@@ -74,7 +74,7 @@ export default function Dca() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <h1 className="text-3xl font-bold font-mono tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/50 uppercase flex items-center gap-3">
+      <h1 className="text-3xl font-bold  tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/50 uppercase flex items-center gap-3">
         <Repeat className="h-6 w-6 text-primary" />
         Temporal Ops
       </h1>
@@ -82,8 +82,8 @@ export default function Dca() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xs font-mono uppercase tracking-widest text-muted-foreground pl-1">Scheduled Routines</h2>
-            <Button variant="outline" size="sm" className="h-8 font-mono text-xs tracking-widest uppercase border-border hover:bg-accent" onClick={() => queryClient.invalidateQueries({ queryKey: getListDcaSetupsQueryKey() })}>Sync Data</Button>
+            <h2 className="text-xs  uppercase tracking-widest text-muted-foreground pl-1">Scheduled Routines</h2>
+            <Button variant="outline" size="sm" className="h-8  text-xs tracking-widest uppercase border-border hover:bg-accent" onClick={() => queryClient.invalidateQueries({ queryKey: getListDcaSetupsQueryKey() })}>Sync Data</Button>
           </div>
           
           {isLoading ? (
@@ -92,10 +92,10 @@ export default function Dca() {
               <Skeleton className="h-28 w-full bg-card border-border rounded-xl" />
             </div>
           ) : !dcaSetups || dcaSetups.length === 0 ? (
-            <div className="p-16 text-center text-sm font-mono text-muted-foreground border border-dashed border-border rounded-xl bg-card/20 flex flex-col items-center gap-4">
+            <div className="p-16 text-center text-sm  text-muted-foreground border border-dashed border-border rounded-xl bg-card/20 flex flex-col items-center gap-4">
               <Activity className="h-12 w-12 text-muted-foreground/30 mb-2" />
-              <p className="font-mono text-sm font-bold text-muted-foreground uppercase tracking-widest">No Active Routines</p>
-              <p className="font-mono text-xs text-muted-foreground/60">Schedule an automated purchase via the panel →</p>
+              <p className=" text-sm font-bold text-muted-foreground uppercase tracking-widest">No Active Routines</p>
+              <p className=" text-xs text-muted-foreground/60">Schedule an automated purchase via the panel →</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -104,14 +104,14 @@ export default function Dca() {
                   <div className="p-5 flex flex-col sm:flex-row justify-between gap-5">
                     <div>
                       <div className="flex items-center gap-3 mb-2">
-                        <span className="font-bold font-mono text-lg tracking-tight text-foreground">{dca.tokenSymbol || "Unknown Asset"}</span>
+                        <span className="font-bold  text-lg tracking-tight text-foreground">{dca.tokenSymbol || "Unknown Asset"}</span>
                         {getStatusBadge(dca.status)}
                       </div>
-                      <div className="text-[10px] text-muted-foreground font-mono mb-4 flex items-center gap-1.5 bg-background inline-flex px-2 py-0.5 rounded border border-border">
+                      <div className="text-[10px] text-muted-foreground  mb-4 flex items-center gap-1.5 bg-background inline-flex px-2 py-0.5 rounded border border-border">
                         <Link2 className="h-3 w-3" />
                         {truncateAddress(dca.contractAddress)}
                       </div>
-                      <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
+                      <div className="flex flex-wrap items-center gap-3 text-xs ">
                         <div className="bg-background/50 rounded-lg p-2 border border-border/50">
                           <div className="text-muted-foreground uppercase text-[9px] tracking-widest mb-0.5">Commitment</div>
                           <div className="font-bold text-primary">{formatSol(dca.amountSol)} SOL</div>
@@ -186,7 +186,7 @@ export default function Dca() {
         <div className="lg:col-span-1">
           <Card className="glass-panel border-primary/20 sticky top-6">
             <CardHeader className="p-6 border-b border-border bg-card/40">
-              <CardTitle className="text-xs font-mono uppercase tracking-widest text-primary flex items-center gap-2">
+              <CardTitle className="text-xs  uppercase tracking-widest text-primary flex items-center gap-2">
                 <Repeat className="h-4 w-4" /> New Sequence
               </CardTitle>
             </CardHeader>
@@ -198,9 +198,9 @@ export default function Dca() {
                     name="contractAddress"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Contract Hash</FormLabel>
+                        <FormLabel className=" text-xs uppercase tracking-widest text-muted-foreground">Contract Hash</FormLabel>
                         <FormControl>
-                          <Input placeholder="Token address..." className="font-mono bg-background/50 h-12 border-border focus:border-primary/50 text-[10px] sm:text-xs" {...field} />
+                          <Input placeholder="Token address..." className=" bg-background/50 h-12 border-border focus:border-primary/50 text-[10px] sm:text-xs" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -213,9 +213,9 @@ export default function Dca() {
                       name="amountSol"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Volume (SOL)</FormLabel>
+                          <FormLabel className=" text-[10px] uppercase tracking-widest text-muted-foreground">Volume (SOL)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="any" className="font-mono bg-background/50 h-12 text-primary font-bold border-border focus:border-primary/50" {...field} />
+                            <Input type="number" step="any" className=" bg-background/50 h-12 text-primary font-bold border-border focus:border-primary/50" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -227,9 +227,9 @@ export default function Dca() {
                       name="intervalHours"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Interval (Hr)</FormLabel>
+                          <FormLabel className=" text-[10px] uppercase tracking-widest text-muted-foreground">Interval (Hr)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.5" className="font-mono bg-background/50 h-12 border-border focus:border-primary/50" {...field} />
+                            <Input type="number" step="0.5" className=" bg-background/50 h-12 border-border focus:border-primary/50" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -239,7 +239,7 @@ export default function Dca() {
 
                   <Button 
                     type="submit" 
-                    className="w-full h-14 mt-6 font-mono text-sm font-bold tracking-widest bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-[0_0_20px_-5px_hsl(var(--primary)/0.5)] transition-all uppercase"
+                    className="w-full h-14 mt-6  text-sm font-bold tracking-widest bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-[0_0_20px_-5px_hsl(var(--primary)/0.5)] transition-all uppercase"
                     disabled={createDcaSetup.isPending}
                   >
                     {createDcaSetup.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : (

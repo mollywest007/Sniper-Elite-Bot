@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { TrendingDown, Loader2, AlertCircle } from "lucide-react";
+import { TrendingDown, Loader2, AlertCircle, Zap } from "lucide-react";
 import { TradeInputType, TradeInputPriorityFee } from "@workspace/api-client-react";
 import { formatSol, formatPercent, cn, truncateAddress } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -72,18 +72,18 @@ export default function Sell() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <h1 className="text-3xl font-bold font-mono tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-destructive to-destructive/50 uppercase flex items-center gap-3">
+      <h1 className="text-3xl font-black italic tracking-widest text-foreground uppercase flex items-center gap-3">
         <TrendingDown className="h-6 w-6 text-destructive" />
         Liquidate Position
       </h1>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-4">
-          <h2 className="text-xs font-mono uppercase tracking-widest text-muted-foreground pl-1">Select Asset</h2>
+          <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground pl-1">Select Asset</h2>
           {positionsLoading ? (
             <Skeleton className="h-[400px] w-full bg-card border-border rounded-xl" />
           ) : !positions || positions.length === 0 ? (
-            <div className="p-12 text-center text-sm font-mono text-muted-foreground border border-dashed border-border rounded-xl bg-card/20 flex flex-col items-center gap-4">
+            <div className="p-12 text-center text-sm  text-muted-foreground border border-dashed border-border rounded-xl bg-card/20 flex flex-col items-center gap-4">
               <AlertCircle className="h-10 w-10 text-muted-foreground/40" />
               <p>No open positions available to sell.</p>
             </div>
@@ -105,15 +105,15 @@ export default function Sell() {
                   )}
                   <div className="flex justify-between items-center relative z-10">
                     <div>
-                      <div className="font-bold font-mono text-lg tracking-tight text-foreground flex items-center gap-2">
+                      <div className="font-bold text-lg tracking-tight text-foreground flex items-center gap-2">
                         {pos.tokenSymbol}
-                        {selectedContract === pos.contractAddress && <span className="text-[10px] bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded uppercase tracking-wider">Selected</span>}
+                        {selectedContract === pos.contractAddress && <span className="text-[10px] bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded uppercase tracking-wider font-bold">Selected</span>}
                       </div>
-                      <div className="text-[10px] text-muted-foreground font-mono mt-1 bg-background inline-block px-2 py-0.5 rounded border border-border">{truncateAddress(pos.contractAddress)}</div>
+                      <div className="text-[10px] text-muted-foreground  mt-1 bg-background inline-block px-2 py-0.5 rounded border border-border">{truncateAddress(pos.contractAddress)}</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-mono text-base font-bold text-foreground">{formatSol(pos.valueSol)} SOL</div>
-                      <div className={cn("text-xs font-mono mt-0.5 font-medium", pos.pnlPercent >= 0 ? "text-success" : "text-destructive")}>
+                      <div className=" text-base font-bold text-foreground">{formatSol(pos.valueSol)} SOL</div>
+                      <div className={cn("text-xs  mt-0.5 font-bold", pos.pnlPercent >= 0 ? "text-primary" : "text-destructive")}>
                         {pos.pnlPercent >= 0 ? "+" : ""}{formatPercent(pos.pnlPercent)}
                       </div>
                     </div>
@@ -125,14 +125,14 @@ export default function Sell() {
         </div>
 
         <div>
-          <Card className="glass-panel border-destructive/20 sticky top-6 overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-destructive/5 blur-3xl -z-10 rounded-full" />
+          <Card className="glass-panel corner-brackets border-destructive/30 sticky top-6 overflow-hidden">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-destructive/10 blur-3xl -z-10 rounded-full" />
             <CardHeader className="p-8 border-b border-border bg-card/40">
-              <CardTitle className="text-xs font-mono uppercase tracking-widest text-destructive flex items-center gap-2">
-                <TrendingDown className="h-4 w-4" /> Execution Parameters
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-destructive flex items-center gap-2">
+                <Zap className="h-4 w-4" /> Execution Parameters
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-8">
+            <CardContent className="p-8 relative z-10">
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
                   <div className="bg-background/30 p-6 rounded-xl border border-border space-y-6">
@@ -142,15 +142,15 @@ export default function Sell() {
                       render={({ field }) => (
                         <FormItem>
                           <div className="flex justify-between items-end mb-2">
-                            <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Liquidation Amount (%)</FormLabel>
+                            <FormLabel className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Liquidation Amount (%)</FormLabel>
                             {selectedPosition && (
-                              <span className="text-[10px] font-mono text-muted-foreground">
+                              <span className="text-[10px]  text-muted-foreground font-bold">
                                 Est: <span className="text-foreground">{formatSol((selectedPosition.valueSol * field.value) / 100)} SOL</span>
                               </span>
                             )}
                           </div>
                           <FormControl>
-                            <Input type="number" min="1" max="100" className="font-mono bg-background h-14 text-xl font-bold text-destructive border-border focus:border-destructive/50" {...field} disabled={!selectedContract} />
+                            <Input type="number" min="1" max="100" className=" bg-background h-14 text-xl font-bold text-destructive border-border focus:border-destructive/50" {...field} disabled={!selectedContract} />
                           </FormControl>
                           <div className="grid grid-cols-4 gap-3 mt-4">
                             {PRESET_PERCENT.map(pct => (
@@ -159,7 +159,7 @@ export default function Sell() {
                                 type="button"
                                 variant="outline"
                                 disabled={!selectedContract}
-                                className={cn("font-mono text-xs font-bold h-10 border-border bg-background hover:bg-destructive/10 hover:border-destructive/30 hover:text-destructive transition-colors",
+                                className={cn(" text-xs font-bold h-10 border-border bg-background hover:bg-destructive/10 hover:border-destructive/30 hover:text-destructive transition-colors",
                                   field.value === pct && "bg-destructive/10 border-destructive/50 text-destructive"
                                 )}
                                 onClick={() => form.setValue("percentOfPosition", pct)}
@@ -180,9 +180,9 @@ export default function Sell() {
                       name="slippagePercent"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2 block">Slippage (%)</FormLabel>
+                          <FormLabel className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground mb-2 block">Slippage (%)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.1" className="font-mono bg-background/50 h-12 border-border focus:border-destructive/50" {...field} disabled={!selectedContract} />
+                            <Input type="number" step="0.1" className=" bg-background/50 h-12 border-border focus:border-destructive/50" {...field} disabled={!selectedContract} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -194,10 +194,10 @@ export default function Sell() {
                       name="priorityFee"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2 block">Network Priority</FormLabel>
+                          <FormLabel className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground mb-2 block">Network Priority</FormLabel>
                           <FormControl>
                             <select 
-                              className="flex h-12 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive/50 disabled:cursor-not-allowed disabled:opacity-50 font-mono transition-colors"
+                              className="flex h-12 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive/50 disabled:cursor-not-allowed disabled:opacity-50  font-bold transition-colors"
                               {...field}
                               disabled={!selectedContract}
                             >
@@ -215,13 +215,13 @@ export default function Sell() {
 
                   <Button 
                     type="submit" 
-                    className="w-full h-16 mt-4 font-mono text-base font-bold tracking-widest bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:shadow-[0_0_20px_-5px_hsl(var(--destructive)/0.5)] transition-all uppercase"
+                    className="w-full h-16 mt-4 text-sm font-bold tracking-widest bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:shadow-[0_0_25px_-5px_hsl(var(--destructive)/0.6)] transition-all uppercase rounded-xl"
                     disabled={executeTrade.isPending || !selectedContract}
                   >
                     {executeTrade.isPending ? <Loader2 className="h-6 w-6 animate-spin" /> : (
                       <>
-                        <TrendingDown className="mr-3 h-5 w-5" />
-                        Confirm Sell Order
+                        <Zap className="mr-3 h-5 w-5 fill-current" />
+                        Execute Sell Order
                       </>
                     )}
                   </Button>

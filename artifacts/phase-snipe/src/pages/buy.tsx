@@ -59,19 +59,19 @@ export default function Buy() {
 
   return (
     <div className="space-y-8 max-w-3xl mx-auto animate-in fade-in duration-500">
-      <h1 className="text-3xl font-bold font-mono tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-success to-success/50 uppercase flex items-center gap-3">
-        <ShoppingCart className="h-6 w-6 text-success" />
+      <h1 className="text-3xl font-black italic tracking-widest text-foreground uppercase flex items-center gap-3">
+        <ShoppingCart className="h-6 w-6 text-primary" />
         Market Buy
       </h1>
       
-      <Card className="glass-panel border-success/20 overflow-hidden relative">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-success/5 blur-3xl -z-10 rounded-full" />
+      <Card className="glass-panel border-primary/30 overflow-hidden relative corner-brackets">
+        <div className="absolute top-0 right-0 w-48 h-48 bg-primary/10 blur-3xl -z-10 rounded-full" />
         <CardHeader className="p-8 border-b border-border bg-card/40">
-          <CardTitle className="text-xs font-mono uppercase tracking-widest text-success flex items-center gap-2">
+          <CardTitle className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
             <Zap className="h-4 w-4" /> Instant Execution
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-8">
+        <CardContent className="p-8 relative z-10">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
               <FormField
@@ -79,9 +79,9 @@ export default function Buy() {
                 name="contractAddress"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2 block">Target Contract Address</FormLabel>
+                    <FormLabel className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground mb-2 block">Target Contract Address</FormLabel>
                     <FormControl>
-                      <Input placeholder="Paste Solana token address..." className="font-mono bg-background/50 h-14 text-base border-border focus:border-success/50 transition-colors" {...field} />
+                      <Input placeholder="Paste Solana token address..." className=" bg-background/50 h-14 text-base border-border focus:border-primary/50 transition-colors" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -94,9 +94,9 @@ export default function Buy() {
                   name="amountSol"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2 block">Position Size (SOL)</FormLabel>
+                      <FormLabel className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground mb-2 block">Position Size (SOL)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="any" placeholder="0.00" className="font-mono bg-background h-14 text-xl font-bold text-success border-border focus:border-success/50" {...field} />
+                        <Input type="number" step="any" placeholder="0.00" className=" bg-background h-14 text-xl font-bold text-primary border-border focus:border-primary/50" {...field} />
                       </FormControl>
                       <div className="grid grid-cols-5 gap-3 mt-4">
                         {PRESET_AMOUNTS.map(amount => (
@@ -104,7 +104,7 @@ export default function Buy() {
                             key={amount}
                             type="button"
                             variant="outline"
-                            className="font-mono text-xs font-bold h-10 border-border bg-background hover:bg-success/10 hover:border-success/30 hover:text-success transition-colors"
+                            className=" text-xs font-bold h-10 border-border bg-background hover:bg-primary/20 hover:border-primary/50 hover:text-primary transition-colors"
                             onClick={() => form.setValue("amountSol", amount)}
                           >
                             {amount}
@@ -123,9 +123,9 @@ export default function Buy() {
                   name="slippagePercent"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2 block">Slippage Tolerance (%)</FormLabel>
+                      <FormLabel className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground mb-2 block">Slippage Tolerance (%)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.1" className="font-mono bg-background/50 h-12 border-border focus:border-success/50" {...field} />
+                        <Input type="number" step="0.1" className=" bg-background/50 h-12 border-border focus:border-primary/50" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -137,10 +137,10 @@ export default function Buy() {
                   name="priorityFee"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground mb-2 block">Network Priority</FormLabel>
+                      <FormLabel className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground mb-2 block">Network Priority</FormLabel>
                       <FormControl>
                         <select 
-                          className="flex h-12 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-success/50 disabled:cursor-not-allowed disabled:opacity-50 font-mono transition-colors"
+                          className="flex h-12 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50  font-bold transition-colors"
                           {...field}
                         >
                           <option value="auto">Auto (Dynamic)</option>
@@ -157,13 +157,13 @@ export default function Buy() {
 
               <Button 
                 type="submit" 
-                className="w-full h-16 mt-4 font-mono text-base font-bold tracking-widest bg-success text-success-foreground hover:bg-success/90 hover:shadow-[0_0_20px_-5px_hsl(var(--success)/0.5)] transition-all uppercase"
+                className="w-full h-16 mt-4 font-bold text-sm tracking-widest bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-[0_0_25px_-5px_hsl(var(--primary)/0.6)] transition-all uppercase rounded-xl"
                 disabled={executeTrade.isPending}
               >
                 {executeTrade.isPending ? <Loader2 className="h-6 w-6 animate-spin" /> : (
                   <>
-                    <ShoppingCart className="mr-3 h-5 w-5" />
-                    Confirm Buy Order
+                    <Zap className="mr-3 h-5 w-5 fill-current" />
+                    Execute Buy Order
                   </>
                 )}
               </Button>

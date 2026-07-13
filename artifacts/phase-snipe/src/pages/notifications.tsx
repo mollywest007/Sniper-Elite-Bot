@@ -18,7 +18,8 @@ import {
   Copy,
   Target,
   Repeat,
-  TerminalSquare
+  TerminalSquare,
+  Zap
 } from "lucide-react";
 import { cn, formatPercent, formatSol } from "@/lib/utils";
 import { NotificationType } from "@workspace/api-client-react";
@@ -56,8 +57,8 @@ export default function Notifications() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold font-mono tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/50 uppercase flex items-center gap-3">
-          <TerminalSquare className="h-6 w-6 text-primary" />
+        <h1 className="text-3xl font-black italic tracking-widest text-foreground uppercase flex items-center gap-3">
+          <Zap className="h-8 w-8 text-primary fill-primary" />
           Event Matrix
         </h1>
       </div>
@@ -72,8 +73,8 @@ export default function Notifications() {
         ) : !notifications || notifications.length === 0 ? (
           <div className="p-16 text-center border border-dashed border-border rounded-xl bg-card/20 flex flex-col items-center gap-4">
             <TerminalSquare className="h-12 w-12 text-muted-foreground/30 mb-2" />
-            <p className="font-mono text-sm font-bold text-muted-foreground uppercase tracking-widest">No Events Found</p>
-            <p className="font-mono text-xs text-muted-foreground/60">System logs are empty.</p>
+            <p className="font-bold text-sm font-bold text-muted-foreground uppercase tracking-widest">No Events Found</p>
+            <p className="font-bold text-xs text-muted-foreground/60">System logs are empty.</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -94,19 +95,19 @@ export default function Notifications() {
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <h3 className={cn("font-mono font-bold text-sm tracking-tight", !notif.isRead ? "text-primary" : "text-foreground")}>
+                      <h3 className={cn("font-bold font-bold text-sm tracking-tight", !notif.isRead ? "text-primary" : "text-foreground")}>
                         {notif.title}
                       </h3>
                       {!notif.isRead && <span className="text-[9px] uppercase tracking-widest bg-primary text-primary-foreground px-1.5 py-0.5 rounded font-bold">New</span>}
                     </div>
-                    <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                       {new Date(notif.createdAt).toLocaleString()}
                     </div>
                   </div>
                   
-                  <p className="text-xs font-mono text-muted-foreground/80 leading-relaxed">{notif.message}</p>
+                  <p className="text-xs font-bold text-muted-foreground/80 leading-relaxed">{notif.message}</p>
                   
-                  <div className="flex flex-wrap items-center gap-3 mt-3 text-[10px] font-mono uppercase tracking-widest">
+                  <div className="flex flex-wrap items-center gap-3 mt-3 text-[10px] font-bold uppercase tracking-widest">
                     {notif.tokenSymbol && (
                       <span className="bg-background/80 px-2 py-1 rounded border border-border">
                         Asset: <span className="text-foreground font-bold">{notif.tokenSymbol}</span>

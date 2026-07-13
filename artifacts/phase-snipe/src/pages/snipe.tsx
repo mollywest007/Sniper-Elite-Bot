@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Crosshair, Play, Square, Trash2, Loader2, Activity, Pencil, Terminal } from "lucide-react";
+import { Crosshair, Play, Square, Trash2, Loader2, Activity, Pencil, Terminal, Zap } from "lucide-react";
 import { SniperInputPriorityFee, SniperStatus } from "@workspace/api-client-react";
 import { formatSol, cn, truncateAddress } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -118,7 +118,7 @@ export default function Snipe() {
   const getStatusBadge = (status: SniperStatus) => {
     switch (status) {
       case "monitoring": return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-warning/20 text-warning border border-warning/50 shadow-[0_0_10px_hsl(var(--warning)/0.2)]">Monitoring</span>;
-      case "sniped": return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-success/20 text-success border border-success/50">Acquired</span>;
+      case "sniped": return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-primary/20 text-primary border border-primary/50 shadow-[0_0_10px_hsl(var(--primary)/0.2)]">Acquired</span>;
       case "stopped": return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-muted/50 text-muted-foreground border border-border">Halted</span>;
       case "failed": return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-destructive/20 text-destructive border border-destructive/50">Failed</span>;
       default: return <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-background border border-border text-muted-foreground">Standby</span>;
@@ -127,7 +127,7 @@ export default function Snipe() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <h1 className="text-3xl font-bold font-mono tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/50 uppercase flex items-center gap-3">
+      <h1 className="text-3xl font-black italic tracking-widest text-foreground uppercase flex items-center gap-3">
         <Crosshair className="h-6 w-6 text-primary" />
         Sniper Protocol
       </h1>
@@ -136,7 +136,7 @@ export default function Snipe() {
       <Dialog open={!!editingSniper} onOpenChange={(open) => { if (!open) setEditingSniper(null); }}>
         <DialogContent className="bg-card border-border sm:max-w-md glass-panel">
           <DialogHeader>
-            <DialogTitle className="font-mono uppercase tracking-widest text-primary flex items-center gap-2">
+            <DialogTitle className="font-bold uppercase tracking-widest text-primary flex items-center gap-2">
               <Terminal className="h-4 w-4" /> Reconfigure #{editingSniper?.id}
             </DialogTitle>
           </DialogHeader>
@@ -147,9 +147,9 @@ export default function Snipe() {
                 name="buyAmountSol"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Commitment (SOL)</FormLabel>
+                    <FormLabel className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Commitment (SOL)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="any" className="font-mono bg-background/50 border-border h-12 text-primary" {...field} />
+                      <Input type="number" step="any" className=" font-bold text-lg bg-background/50 border-border h-12 text-primary" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -161,9 +161,9 @@ export default function Snipe() {
                   name="slippagePercent"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Slippage (%)</FormLabel>
+                      <FormLabel className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Slippage (%)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.1" className="font-mono bg-background/50 border-border h-12" {...field} />
+                        <Input type="number" step="0.1" className=" bg-background/50 border-border h-12" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -174,9 +174,9 @@ export default function Snipe() {
                   name="priorityFee"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Network Fee</FormLabel>
+                      <FormLabel className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Network Fee</FormLabel>
                       <FormControl>
-                        <select className="flex h-12 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm font-mono focus-visible:ring-1 focus-visible:ring-primary/50" {...field}>
+                        <select className="flex h-12 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm font-bold  focus-visible:ring-1 focus-visible:ring-primary/50" {...field}>
                           <option value="auto">Auto</option>
                           <option value="low">Low</option>
                           <option value="medium">Medium</option>
@@ -188,10 +188,10 @@ export default function Snipe() {
                 />
               </div>
               <div className="flex gap-4 pt-4">
-                <Button type="button" variant="outline" className="flex-1 font-mono text-xs tracking-widest uppercase border-border h-12" onClick={() => setEditingSniper(null)}>
+                <Button type="button" variant="outline" className="flex-1 font-bold text-xs tracking-widest uppercase border-border h-12 hover:bg-accent" onClick={() => setEditingSniper(null)}>
                   Abort
                 </Button>
-                <Button type="submit" className="flex-1 font-mono text-xs tracking-widest font-bold uppercase bg-primary text-primary-foreground hover:bg-primary/90 h-12 shadow-[0_0_15px_-3px_hsl(var(--primary)/0.4)]" disabled={updateSniper.isPending}>
+                <Button type="submit" className="flex-1 text-xs tracking-widest font-bold uppercase bg-primary text-primary-foreground hover:bg-primary/90 h-12 shadow-[0_0_15px_-3px_hsl(var(--primary)/0.4)]" disabled={updateSniper.isPending}>
                   {updateSniper.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply Sync"}
                 </Button>
               </div>
@@ -203,8 +203,8 @@ export default function Snipe() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xs font-mono uppercase tracking-widest text-muted-foreground pl-1">Active Directives</h2>
-            <Button variant="outline" size="sm" className="h-8 font-mono text-xs tracking-widest uppercase border-border hover:bg-accent hover:text-foreground" onClick={() => queryClient.invalidateQueries({ queryKey: getListSnipersQueryKey() })}>Sync Data</Button>
+            <h2 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground pl-1">Active Directives</h2>
+            <Button variant="outline" size="sm" className="h-8 font-bold text-[10px] tracking-widest uppercase border-border hover:bg-accent hover:text-foreground" onClick={() => queryClient.invalidateQueries({ queryKey: getListSnipersQueryKey() })}>Sync Data</Button>
           </div>
           
           {isLoading ? (
@@ -215,8 +215,8 @@ export default function Snipe() {
           ) : !snipers || snipers.length === 0 ? (
             <div className="p-16 text-center border border-dashed border-border rounded-xl bg-card/20 flex flex-col items-center gap-4">
               <Crosshair className="h-12 w-12 text-muted-foreground/30 mb-2" />
-              <p className="font-mono text-sm font-bold text-muted-foreground uppercase tracking-widest">No Active Snipers</p>
-              <p className="font-mono text-xs text-muted-foreground/60">Initialize a new target via the command panel →</p>
+              <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">No Active Snipers</p>
+              <p className=" text-xs text-muted-foreground/60">Initialize a new target via the command panel →</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -226,33 +226,33 @@ export default function Snipe() {
                     <div className="flex flex-col sm:flex-row justify-between gap-5">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-2 flex-wrap">
-                          <span className="font-bold font-mono text-lg text-foreground tracking-tight">{sniper.tokenSymbol || "Unknown Token"}</span>
-                          <span className="text-[10px] font-mono text-muted-foreground bg-background px-1.5 py-0.5 rounded border border-border">OBJ-{sniper.id}</span>
+                          <span className="font-bold text-lg text-foreground tracking-tight">{sniper.tokenSymbol || "Unknown Token"}</span>
+                          <span className="text-[10px]  font-bold text-muted-foreground bg-background px-1.5 py-0.5 rounded border border-border">OBJ-{sniper.id}</span>
                           {getStatusBadge(sniper.status)}
                         </div>
-                        <div className="text-[10px] text-muted-foreground font-mono mb-4 flex items-center gap-1.5">
+                        <div className="text-[10px] text-muted-foreground  mb-4 flex items-center gap-1.5">
                           <Terminal className="h-3 w-3" /> {truncateAddress(sniper.contractAddress)}
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs ">
                           <div className="bg-background/50 rounded-lg p-2.5 border border-border/50">
-                            <div className="text-muted-foreground uppercase text-[9px] tracking-widest mb-1">Commit</div>
-                            <div className="font-bold text-foreground">{formatSol(sniper.buyAmountSol)} SOL</div>
+                            <div className="text-muted-foreground uppercase text-[9px] font-bold tracking-widest mb-1">Commit</div>
+                            <div className="font-bold text-primary">{formatSol(sniper.buyAmountSol)} SOL</div>
                           </div>
                           <div className="bg-background/50 rounded-lg p-2.5 border border-border/50">
-                            <div className="text-muted-foreground uppercase text-[9px] tracking-widest mb-1">Slippage</div>
+                            <div className="text-muted-foreground uppercase text-[9px] font-bold tracking-widest mb-1">Slippage</div>
                             <div className="font-bold text-foreground">{sniper.slippagePercent}%</div>
                           </div>
                           <div className="bg-background/50 rounded-lg p-2.5 border border-border/50">
-                            <div className="text-muted-foreground uppercase text-[9px] tracking-widest mb-1">Network</div>
+                            <div className="text-muted-foreground uppercase text-[9px] font-bold tracking-widest mb-1">Network</div>
                             <div className="font-bold capitalize text-foreground">{sniper.priorityFee}</div>
                           </div>
                           <div className="bg-background/50 rounded-lg p-2.5 border border-border/50">
-                            <div className="text-muted-foreground uppercase text-[9px] tracking-widest mb-1">Tries</div>
+                            <div className="text-muted-foreground uppercase text-[9px] font-bold tracking-widest mb-1">Tries</div>
                             <div className="font-bold text-foreground">{sniper.attempts}</div>
                           </div>
                         </div>
                         {sniper.status === "monitoring" && (
-                          <div className="mt-4 flex items-center gap-2 text-[10px] tracking-widest text-warning font-mono uppercase bg-warning/10 inline-flex px-2 py-1 rounded border border-warning/20">
+                          <div className="mt-4 flex items-center gap-2 text-[10px] font-bold tracking-widest text-warning uppercase bg-warning/10 inline-flex px-2 py-1 rounded border border-warning/20">
                             <Activity className="h-3 w-3 animate-pulse" />
                             Awaiting Liquidity Event...
                           </div>
@@ -264,28 +264,28 @@ export default function Snipe() {
                             <Button 
                               size="sm"
                               variant="outline" 
-                              className="h-9 font-mono text-[10px] tracking-widest uppercase font-bold text-warning border-warning/30 hover:bg-warning/10 hover:border-warning"
+                              className="h-9 text-[10px] tracking-widest uppercase font-bold text-primary border-primary/30 hover:bg-primary/10 hover:border-primary"
                               onClick={() => startSniper.mutate({ id: sniper.id }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListSnipersQueryKey() }) })}
                               disabled={startSniper.isPending}
                             >
-                              <Play className="h-3 w-3 mr-1.5" /> Arm
+                              <Play className="h-3 w-3 mr-1.5 fill-current" /> Arm
                             </Button>
                           ) : sniper.status === "monitoring" ? (
                             <Button 
                               size="sm"
                               variant="outline" 
-                              className="h-9 font-mono text-[10px] tracking-widest uppercase font-bold text-destructive border-destructive/30 hover:bg-destructive/10 hover:border-destructive"
+                              className="h-9 text-[10px] tracking-widest uppercase font-bold text-destructive border-destructive/30 hover:bg-destructive/10 hover:border-destructive"
                               onClick={() => stopSniper.mutate({ id: sniper.id }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListSnipersQueryKey() }) })}
                               disabled={stopSniper.isPending}
                             >
-                              <Square className="h-3 w-3 mr-1.5" /> Halt
+                              <Square className="h-3 w-3 mr-1.5 fill-current" /> Halt
                             </Button>
                           ) : null}
 
                           <Button 
                             size="sm"
                             variant="outline"
-                            className="h-9 font-mono text-[10px] tracking-widest uppercase font-bold text-muted-foreground border-border hover:text-foreground hover:bg-accent"
+                            className="h-9 text-[10px] tracking-widest uppercase font-bold text-muted-foreground border-border hover:text-foreground hover:bg-accent"
                             onClick={() => openEdit({ id: sniper.id, buyAmountSol: sniper.buyAmountSol, slippagePercent: sniper.slippagePercent, priorityFee: sniper.priorityFee })}
                           >
                             <Pencil className="h-3 w-3 mr-1.5" /> Mod
@@ -306,7 +306,7 @@ export default function Snipe() {
                   </div>
                   {sniper.status === "monitoring" && (
                     <div className="h-0.5 w-full bg-border overflow-hidden">
-                      <div className="h-full bg-warning animate-pulse w-full opacity-70" />
+                      <div className="h-full bg-warning animate-pulse w-full opacity-70 shadow-[0_0_10px_hsl(var(--warning))]" />
                     </div>
                   )}
                 </Card>
@@ -316,13 +316,14 @@ export default function Snipe() {
         </div>
 
         <div className="lg:col-span-1">
-          <Card className="glass-panel border-primary/20 sticky top-6">
+          <Card className="glass-panel corner-brackets border-primary/30 sticky top-6 overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-3xl -z-10 rounded-full" />
             <CardHeader className="p-6 border-b border-border bg-card/40">
-              <CardTitle className="text-xs font-mono uppercase tracking-widest text-primary flex items-center gap-2">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
                 <Terminal className="h-4 w-4" /> Initialize Target
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-6">
+            <CardContent className="p-6 relative z-10">
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                   <FormField
@@ -330,9 +331,9 @@ export default function Snipe() {
                     name="contractAddress"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Contract Hash</FormLabel>
+                        <FormLabel className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Contract Hash</FormLabel>
                         <FormControl>
-                          <Input placeholder="Token address..." className="font-mono bg-background/50 h-12 border-border focus:border-primary/50 text-[10px] sm:text-xs" {...field} />
+                          <Input placeholder="Token address..." className=" bg-background/50 h-12 border-border focus:border-primary/50 text-[10px] sm:text-xs" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -346,11 +347,11 @@ export default function Snipe() {
                       render={({ field }) => (
                         <FormItem>
                           <div className="flex justify-between items-center mb-2">
-                            <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Commitment (SOL)</FormLabel>
+                            <FormLabel className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Commitment (SOL)</FormLabel>
                             <div className="flex gap-1.5">
                               {[0.1, 0.5, 1].map(v => (
                                 <button key={v} type="button" onClick={() => field.onChange(v)}
-                                  className={cn("px-2 py-0.5 rounded text-[9px] font-mono font-bold border transition-colors",
+                                  className={cn("px-2 py-0.5 rounded text-[9px]  font-bold border transition-colors",
                                     field.value === v ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground hover:border-border/80 bg-background"
                                   )}>
                                   {v}
@@ -359,7 +360,7 @@ export default function Snipe() {
                             </div>
                           </div>
                           <FormControl>
-                            <Input type="number" step="any" className="font-mono bg-background h-12 text-primary font-bold text-lg border-border focus:border-primary/50" {...field} />
+                            <Input type="number" step="any" className=" bg-background h-12 text-primary font-bold text-lg border-border focus:border-primary/50" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -373,9 +374,9 @@ export default function Snipe() {
                       name="slippagePercent"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Slippage (%)</FormLabel>
+                          <FormLabel className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Slippage (%)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.1" className="font-mono bg-background/50 h-12 border-border focus:border-primary/50" {...field} />
+                            <Input type="number" step="0.1" className=" bg-background/50 h-12 border-border focus:border-primary/50" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -387,10 +388,10 @@ export default function Snipe() {
                       name="priorityFee"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Priority</FormLabel>
+                          <FormLabel className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Priority</FormLabel>
                           <FormControl>
                             <select 
-                              className="flex h-12 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm font-mono focus-visible:ring-1 focus-visible:ring-primary/50"
+                              className="flex h-12 w-full rounded-md border border-input bg-background/50 px-3 py-2 text-sm font-bold  focus-visible:ring-1 focus-visible:ring-primary/50 transition-colors"
                               {...field}
                             >
                               <option value="auto">Auto</option>
@@ -407,12 +408,12 @@ export default function Snipe() {
 
                   <Button 
                     type="submit" 
-                    className="w-full h-14 mt-6 font-mono text-sm font-bold tracking-widest bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-[0_0_20px_-5px_hsl(var(--primary)/0.5)] transition-all uppercase"
+                    className="w-full h-14 mt-6 text-sm font-bold tracking-widest bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-[0_0_20px_-5px_hsl(var(--primary)/0.5)] transition-all uppercase rounded-xl"
                     disabled={createSniper.isPending}
                   >
                     {createSniper.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                       <>
-                        <Crosshair className="mr-2 h-4 w-4" />
+                        <Zap className="mr-2 h-4 w-4 fill-current" />
                         Arm Sniper
                       </>
                     )}

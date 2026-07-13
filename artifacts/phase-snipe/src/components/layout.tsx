@@ -12,7 +12,7 @@ import {
   Settings,
   Bell,
   ChevronLeft,
-  Terminal,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useListNotifications } from "@workspace/api-client-react";
@@ -68,8 +68,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <aside className="hidden md:flex flex-col w-[260px] border-r border-border glass-panel shrink-0 relative z-20">
         <div className="p-6 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-3 text-primary">
-            <Terminal className="h-6 w-6 stroke-[1.5]" />
-            <span className="font-bold font-mono tracking-widest uppercase text-lg text-glow">Phase</span>
+            <div className="p-2 bg-primary/10 rounded-md border border-primary/30">
+              <Zap className="h-5 w-5 stroke-[2] fill-primary/20" />
+            </div>
+            <span className="font-bold  tracking-widest uppercase text-xl text-glow italic">Phase</span>
           </div>
           <Link
             href="/notifications"
@@ -92,25 +94,25 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-md text-sm font-mono tracking-wide transition-all group",
+                  "flex items-center gap-3 px-4 py-3 rounded-md text-sm font-bold tracking-wide transition-all group",
                   isActive
-                    ? "bg-primary/10 text-primary border border-primary/20 shadow-[inset_4px_0_0_0_hsl(var(--primary))]"
+                    ? "bg-primary text-primary-foreground shadow-[0_0_15px_-3px_hsl(var(--primary)/0.4)]"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground border border-transparent"
                 )}
               >
                 <Icon
                   className={cn(
-                    "h-4 w-4 stroke-[1.5] transition-colors",
-                    isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                    "h-4 w-4 stroke-[2] transition-colors",
+                    isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
                   )}
                 />
-                <span>{item.label}</span>
+                <span className={cn(isActive ? "uppercase tracking-widest text-[13px]" : "")}>{item.label}</span>
               </Link>
             );
           })}
         </nav>
-        <div className="p-4 border-t border-border text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest text-center">
-          Terminal Ready • v1.0.4
+        <div className="p-4 border-t border-border text-[10px]  text-primary/70 uppercase tracking-widest flex items-center justify-center gap-2">
+          <Zap className="h-3 w-3 fill-primary/50" /> System Online
         </div>
       </aside>
 
@@ -121,15 +123,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {!isRoot ? (
             <button
               onClick={goBack}
-              className="flex items-center gap-2 text-xs font-mono font-medium text-muted-foreground hover:text-primary transition-colors rounded-md px-3 py-2 hover:bg-primary/10 border border-transparent hover:border-primary/20"
+              className="flex items-center gap-2 text-xs  font-bold tracking-widest text-muted-foreground hover:text-primary transition-colors rounded-md px-3 py-2 hover:bg-primary/10 border border-transparent hover:border-primary/20 uppercase"
             >
               <ChevronLeft className="h-4 w-4" />
-              BACK
+              Return
             </button>
           ) : (
             <div className="md:hidden flex items-center gap-2 text-primary">
-              <Terminal className="h-5 w-5 stroke-[1.5]" />
-              <span className="font-bold font-mono tracking-widest uppercase text-base text-glow">Phase</span>
+              <Zap className="h-5 w-5 stroke-[2] fill-primary/20" />
+              <span className="font-bold  tracking-widest uppercase text-base text-glow italic">Phase</span>
             </div>
           )}
           <div className="flex-1" />
@@ -144,14 +146,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </Link>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-6 md:p-10 pb-24 md:pb-10 relative">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 relative bg-gradient-to-b from-background to-background/95">
           {/* subtle radial gradient overlay for depth */}
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background/0 to-background/0 pointer-events-none -z-10" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-violet-900/10 via-background/0 to-background/0 pointer-events-none -z-10" />
           <div className="w-full max-w-7xl mx-auto h-full">{children}</div>
         </div>
 
         {/* Mobile Bottom Nav */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-border glass-panel pb-safe z-50 flex items-center justify-around px-2 py-2">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-border bg-card/95 backdrop-blur-xl pb-safe z-50 flex items-center justify-around px-2 py-2">
           {navItems.slice(0, 5).map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -162,14 +164,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center gap-1.5 p-2 rounded-md min-w-[64px] transition-colors",
+                  "flex flex-col items-center gap-1 p-2 rounded-md min-w-[60px] transition-colors relative",
                   isActive
                     ? "text-primary"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                <Icon className="h-5 w-5 stroke-[1.5]" />
-                <span className="text-[9px] font-mono tracking-wider uppercase">{item.label.split(' ')[0]}</span>
+                {isActive && <div className="absolute top-0 w-8 h-1 rounded-b-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />}
+                <Icon className={cn("h-5 w-5 stroke-[2]", isActive ? "mt-1" : "")} />
+                <span className="text-[9px] font-bold tracking-wider uppercase mt-0.5">{item.label.split(' ')[0]}</span>
               </Link>
             );
           })}
