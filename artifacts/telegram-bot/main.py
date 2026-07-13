@@ -25,6 +25,10 @@ async def post_init(app: Application) -> None:
         await app.bot.set_my_short_description("")
     except Exception as e:
         logger.warning("Could not clear short description: %s", e)
+    try:
+        await app.bot.set_my_description("")
+    except Exception as e:
+        logger.warning("Could not clear description: %s", e)
     logger.info("Bot initialized — polling started (%d wallet(s) already generated)", len(persisted))
 
 
