@@ -1,2 +1,3 @@
 - [Vite workflow stdin fix](vite-workflow-stdin.md) — Vite exits in non-TTY workflow env; fix: `tail -f /dev/null | vite ...` in dev script; also covers bad port 21142 and enum import paths.
 - [Python bot architecture](python-bot-architecture.md) — Python bot replaced Node.js grammY bot; uses python-telegram-bot 21.3 + asyncpg; modular layout under artifacts/telegram-bot/bot/.
+- [Post-import/re-clone setup steps](post-import-setup.md) — pnpm install, build api-server, db push, and TELEGRAM_BOT_TOKEN secret are all needed fresh after every import; none are in git.
