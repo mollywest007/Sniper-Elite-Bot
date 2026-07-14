@@ -25,6 +25,7 @@ from ..state import (
     pending_flows, is_rate_limited, get_sniper_config,
     tracked_wallet_address,
 )
+from ..market import fetch_recent_solana_gainers
 from ..config import ADMIN_USERNAME, BOT_WALLET_ADDRESS
 from ..logger import logger
 
@@ -133,8 +134,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     # ── Recent Wins ───────────────────────────────────────────────────────
     if data == "wins:show":
         await query.answer("🏆 Fetching latest wins...")
+        gainers = await fetch_recent_solana_gainers()
         return await _edit(
-            query, screen_recent_wins(),
+            query, screen_recent_wins(gainers),
             kb(
                 [btn("🔄 Refresh", "wins:show")],
                 [btn("◀ Main Menu", "menu:home")],

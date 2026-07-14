@@ -1,12 +1,6 @@
 import random
 from .config import BOT_WALLET_ADDRESS
 
-_WIN_SYMBOLS = [
-    "MOONPEPE", "SOLDOGE", "RUGPROOF", "GIGACHAD", "NEKO", "PHASEX", "TURBO",
-    "BONKX", "ZAPCAT", "SLERF2", "WOJAK", "DEGEN", "FROGX", "PUMPZ", "NOVA",
-    "ASTRO", "GHOST", "VOLT", "APEX", "LUNAR",
-]
-
 
 def trunc(addr: str | None, chars: int = 6) -> str:
     if not addr:
@@ -114,22 +108,25 @@ def screen_sniper_edit(cfg: dict) -> str:
     )
 
 
-def screen_recent_wins() -> str:
-    picks = random.sample(_WIN_SYMBOLS, k=5)
+def screen_recent_wins(gainers: list[dict] | None) -> str:
+    if not gainers:
+        return (
+            "🏆 *Recent Wins*\n\n"
+            "⚠️ Couldn't reach live market data right now.\n\n"
+            "_Tap Refresh to try again_"
+        )
     lines = []
-    for sym in picks:
-        gain = random.uniform(35, 940)
-        profit_sol = random.uniform(0.3, 14)
-        mc = random.uniform(40_000, 6_000_000)
+    for g in gainers:
+        addr_short = trunc(g["address"], 4) if g["address"] else "N/A"
         lines.append(
-            f"🟢 *{sym}*  {f_pct(gain)}\n"
-            f"   Profit `+{f_sol(profit_sol, 2)} SOL`  ·  MC {f_usd(mc)}"
+            f"🟢 *{g['symbol']}*  {f_pct(g['price_change_24h'])}\n"
+            f"   MC {f_usd(g['market_cap'])}  ·  Liq {f_usd(g['liquidity'])}  ·  `{addr_short}`"
         )
     body = "\n\n".join(lines)
     return (
         "🏆 *Recent Wins*\n\n"
         f"{body}\n\n"
-        "_Live snipes from the Phase Snipe network · tap Refresh for more_"
+        "_Live top Solana gainers via DexScreener · tap Refresh for more_"
     )
 
 
