@@ -1,3 +1,4 @@
+import os
 import random
 import string
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
@@ -30,21 +31,44 @@ from ..config import ADMIN_USERNAME, BOT_WALLET_ADDRESS
 from ..logger import logger
 
 
+_BANNER_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "assets",
+    "banner.png",
+)
+
+
 async def _edit(query, text: str, markup: InlineKeyboardMarkup) -> None:
+    """Replace the current screen so Telegram does not show an edited marker."""
+    message = query.message
+    if not message:
+        return
+
     try:
-        if query.message and query.message.photo:
-            # The home screen is a photo message (banner + caption) — captions,
-            # not text, must be edited, and once we navigate away from it we
-            # switch to a fresh text message since other screens have no image.
-            if len(text) <= 1024:
-                await query.edit_message_caption(caption=text, parse_mode=ParseMode.MARKDOWN, reply_markup=markup)
-            else:
-                await query.message.delete()
-                await query.message.chat.send_message(text, parse_mode=ParseMode.MARKDOWN, reply_markup=markup)
-        else:
-            await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=markup)
+        await message.delete()
+
+        # Keep the branded banner on the home dashboard while sending it as a
+        # new message rather than editing the old caption.
+        if text.startswith("⚡ *PHASE SNIPE* ⚡") and len(text) <= 1024:
+            try:
+                with open(_BANNER_PATH, "rb") as banner:
+                    await message.chat.send_photo(
+                        banner,
+                        caption=text,
+                        parse_mode=ParseMode.MARKDOWN,
+                        reply_markup=markup,
+                    )
+                return
+            except OSError as e:
+                logger.warning("Could not load banner for replacement message: %s", e)
+
+        await message.chat.send_message(
+            text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=markup,
+        )
     except BadRequest as e:
-        if "not modified" not in str(e).lower():
+        if "not found" not in str(e).lower() and "message to delete" not in str(e).lower():
             raise
 
 
