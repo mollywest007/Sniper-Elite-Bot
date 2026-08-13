@@ -1,3 +1,4 @@
+import asyncio
 import os
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -31,12 +32,19 @@ async def _send_welcome_with_banner(update: Update, text: str, reply_markup) -> 
         )
 
 
+async def _touch_user_in_background(user_id: int) -> None:
+    try:
+        await touch_bot_user(user_id)
+    except Exception as e:
+        logger.debug("Could not record Telegram user activity: %s", e)
+
+
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     if not user:
         return
     registered_users.add(user.id)
-    await touch_bot_user(user.id)
+    asyncio.create_task(_touch_user_in_background(user.id))
     balance = await get_wallet_balance()
     text = screen_welcome(balance)
     await _send_welcome_with_banner(update, text, kb_main(user.id))

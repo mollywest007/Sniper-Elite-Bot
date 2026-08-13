@@ -45,8 +45,6 @@ async def _edit(query, text: str, markup: InlineKeyboardMarkup) -> None:
         return
 
     try:
-        await message.delete()
-
         # Keep the branded banner on the home dashboard while sending it as a
         # new message rather than editing the old caption.
         if text.startswith("⚡ *PHASE SNIPE* ⚡") and len(text) <= 1024:
@@ -58,18 +56,33 @@ async def _edit(query, text: str, markup: InlineKeyboardMarkup) -> None:
                         parse_mode=ParseMode.MARKDOWN,
                         reply_markup=markup,
                     )
-                return
             except OSError as e:
                 logger.warning("Could not load banner for replacement message: %s", e)
+            else:
+                asyncio.create_task(_delete_replaced_message(message))
+                return
 
-        await message.chat.send_message(
-            text,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=markup,
-        )
+        await message.chat.send_message(text, parse_mode=ParseMode.MARKDOWN, reply_markup=markup)
+        asyncio.create_task(_delete_replaced_message(message))
+    except BadRequest as e:
+        if "not modified" not in str(e).lower():
+            raise
+
+
+async def _delete_replaced_message(message) -> None:
+    """Remove the previous screen without delaying the newly sent one."""
+    try:
+        await message.delete()
     except BadRequest as e:
         if "not found" not in str(e).lower() and "message to delete" not in str(e).lower():
-            raise
+            logger.debug("Could not remove replaced Telegram message: %s", e)
+
+
+async def _touch_user_in_background(user_id: int) -> None:
+    try:
+        await touch_bot_user(user_id)
+    except Exception as e:
+        logger.debug("Could not record Telegram user activity: %s", e)
 
 
 def _is_admin(user) -> bool:
@@ -126,7 +139,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return
     user_id = user.id
     registered_users.add(user_id)
-    await touch_bot_user(user_id)
+    asyncio.create_task(_touch_user_in_background(user_id))
 
     if is_rate_limited(user_id):
         return
