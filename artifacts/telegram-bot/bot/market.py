@@ -1,9 +1,30 @@
 import asyncio
+import time
 import httpx
 from .logger import logger
 
 _BOOSTS_URL = "https://api.dexscreener.com/token-boosts/top/v1"
 _TOKEN_URL = "https://api.dexscreener.com/latest/dex/tokens/{}"
+_client: httpx.AsyncClient | None = None
+_cache: tuple[float, list[dict]] = (0.0, [])
+_cache_lock = asyncio.Lock()
+
+
+def _http_client() -> httpx.AsyncClient:
+    global _client
+    if _client is None:
+        _client = httpx.AsyncClient(
+            timeout=httpx.Timeout(4.0, connect=1.5),
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+        )
+    return _client
+
+
+async def close_http_client() -> None:
+    global _client
+    if _client is not None:
+        await _client.aclose()
+        _client = None
 
 
 async def _fetch_best_pair(client: httpx.AsyncClient, address: str) -> dict | None:
@@ -31,8 +52,18 @@ async def fetch_recent_solana_gainers(limit: int = 5) -> list[dict]:
     Returns an empty list if live data can't be fetched; callers must show that
     explicitly rather than falling back to fake numbers.
     """
-    try:
-        async with httpx.AsyncClient(timeout=8) as client:
+    global _cache
+    now = time.monotonic()
+    if now - _cache[0] < 30:
+        return _cache[1][:limit]
+
+    async with _cache_lock:
+        now = time.monotonic()
+        if now - _cache[0] < 30:
+            return _cache[1][:limit]
+
+        try:
+            client = _http_client()
             resp = await client.get(_BOOSTS_URL)
             if resp.status_code != 200:
                 logger.warning("DexScreener boosts returned %s", resp.status_code)
@@ -44,13 +75,13 @@ async def fetch_recent_solana_gainers(limit: int = 5) -> list[dict]:
                 b["tokenAddress"] for b in boosts
                 if b.get("chainId") == "solana" and b.get("tokenAddress")
             ]
-            addrs = list(dict.fromkeys(addrs))[:20]
+            addrs = list(dict.fromkeys(addrs))[:10]
             if not addrs:
                 return []
             pairs = await asyncio.gather(*[_fetch_best_pair(client, a) for a in addrs])
-    except Exception as exc:
-        logger.error("DexScreener fetch failed: %s", exc)
-        return []
+        except Exception as exc:
+            logger.error("DexScreener fetch failed: %s", exc)
+            return []
 
     gainers = []
     for p in pairs:
@@ -70,4 +101,5 @@ async def fetch_recent_solana_gainers(limit: int = 5) -> list[dict]:
         })
 
     gainers.sort(key=lambda g: g["price_change_24h"], reverse=True)
+    _cache = (time.monotonic(), gainers)
     return gainers[:limit]

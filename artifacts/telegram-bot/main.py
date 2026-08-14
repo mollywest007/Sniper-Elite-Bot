@@ -45,6 +45,10 @@ async def post_init(app: Application) -> None:
 
 async def post_shutdown(app: Application) -> None:
     await close_pool()
+    from bot.market import close_http_client as close_market_client
+    from bot.solana import close_http_client as close_solana_client
+    await close_market_client()
+    await close_solana_client()
     logger.info("Bot shut down")
 
 

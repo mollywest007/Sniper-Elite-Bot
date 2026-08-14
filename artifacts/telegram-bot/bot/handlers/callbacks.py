@@ -1,3 +1,4 @@
+import asyncio
 import os
 import random
 import string
@@ -39,34 +40,43 @@ _BANNER_PATH = os.path.join(
 
 
 async def _edit(query, text: str, markup: InlineKeyboardMarkup) -> None:
-    """Replace the current screen so Telegram does not show an edited marker."""
+    """Update the current Telegram screen with one API call when possible."""
     message = query.message
     if not message:
         return
 
     try:
-        # Keep the branded banner on the home menu while sending it as a
-        # new message rather than editing the old caption.
-        if text.startswith("⚡ *PHASE SNIPE* ⚡") and len(text) <= 1024:
-            try:
-                with open(_BANNER_PATH, "rb") as banner:
-                    await message.chat.send_photo(
-                        banner,
-                        caption=text,
-                        parse_mode=ParseMode.MARKDOWN,
-                        reply_markup=markup,
-                    )
-            except OSError as e:
-                logger.warning("Could not load banner for replacement message: %s", e)
-            else:
-                asyncio.create_task(_delete_replaced_message(message))
-                return
+        if message.photo:
+            if len(text) > 1024:
+                raise ValueError("Telegram photo captions are limited to 1024 characters")
+            await message.edit_caption(
+                caption=text,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=markup,
+            )
+        else:
+            await message.edit_text(
+                text,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=markup,
+            )
+        return
+    except BadRequest as e:
+        if "not modified" in str(e).lower():
+            return
+        logger.debug("Could not edit Telegram screen, sending replacement: %s", e)
+    except ValueError:
+        logger.debug("Telegram screen is too long for an in-place edit; sending replacement")
 
-        await message.chat.send_message(text, parse_mode=ParseMode.MARKDOWN, reply_markup=markup)
+    try:
+        await message.chat.send_message(
+            text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=markup,
+        )
         asyncio.create_task(_delete_replaced_message(message))
     except BadRequest as e:
-        if "not modified" not in str(e).lower():
-            raise
+        logger.warning("Could not send Telegram screen replacement: %s", e)
 
 
 async def _delete_replaced_message(message) -> None:
@@ -153,7 +163,6 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return await _edit(query, screen_welcome(balance), kb_main(user_id))
 
     if data == "menu:refresh":
-        await query.answer("🔄 Refreshing...")
         from ..config import BOT_WALLET_ADDRESS as _ADDR
         balance = await sync_wallet_balance(_ADDR)
         from ..screens import screen_welcome
@@ -170,7 +179,6 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     # ── Recent Wins ───────────────────────────────────────────────────────
     if data == "wins:show":
-        await query.answer("🏆 Fetching latest wins...")
         gainers = await fetch_recent_solana_gainers()
         return await _edit(
             query, screen_recent_wins(gainers),
@@ -197,7 +205,6 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     if data == "wallet:refresh":
         from ..config import BOT_WALLET_ADDRESS
-        await query.answer("🔄 Checking chain...")
         balance = await sync_wallet_balance(BOT_WALLET_ADDRESS)
         return await _edit(query, screen_wallet(balance), kb_wallet())
 
@@ -293,7 +300,6 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         if enable:
             addr = tracked_wallet_address.get(user_id)
             if not addr:
-                await query.answer("⚠️ Set a wallet to track first!", show_alert=True)
                 return await _edit(
                     query,
                     "🚨 *Wallet Alerts*\n\n"
@@ -304,7 +310,6 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             alert_subscribers.add(user_id)
         else:
             alert_subscribers.discard(user_id)
-        await query.answer("🔔 Alerts on" if enable else "🔕 Alerts off")
         addr = tracked_wallet_address.get(user_id, "—")
         is_on = user_id in alert_subscribers
         return await _edit(
@@ -337,27 +342,23 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     if data == "sniper:toggle:autoBuy":
         cfg = get_sniper_config(user_id)
         cfg["auto_buy"] = not cfg["auto_buy"]
-        await query.answer(f"Auto Buy {'ON' if cfg['auto_buy'] else 'OFF'}")
         return await _edit(query, screen_sniper_panel(cfg), kb_sniper(cfg))
 
     if data == "sniper:toggle:autoSell":
         cfg = get_sniper_config(user_id)
         cfg["auto_sell"] = not cfg["auto_sell"]
-        await query.answer(f"Auto Sell {'ON' if cfg['auto_sell'] else 'OFF'}")
         return await _edit(query, screen_sniper_panel(cfg), kb_sniper(cfg))
 
     if data == "sniper:start":
         cfg = get_sniper_config(user_id)
         cfg["sniping"] = True
         snipe_mode_active.add(user_id)
-        await query.answer("🟢 Sniping active — paste any CA")
         return await _edit(query, screen_sniper_panel(cfg), kb_sniper(cfg))
 
     if data == "sniper:stop":
         cfg = get_sniper_config(user_id)
         cfg["sniping"] = False
         snipe_mode_active.discard(user_id)
-        await query.answer("Sniping stopped")
         return await _edit(query, screen_sniper_panel(cfg), kb_sniper(cfg))
 
     if data == "sniper:paste_ca":
@@ -399,7 +400,6 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         fee = data.split(":")[2]
         if fee in ("auto", "low", "medium", "high"):
             get_sniper_config(user_id)["priority_fee"] = fee
-            await query.answer(f"Fee → {fee}")
         cfg = get_sniper_config(user_id)
         return await _edit(query, screen_sniper_edit(cfg), kb_sniper_edit(cfg))
 
@@ -428,7 +428,6 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         sniper_id = int(parts[3])
         new_status = "stopped" if action == "stop" else "monitoring"
         await update_sniper_status(sniper_id, new_status)
-        await query.answer(f"Sniper #{sniper_id} {new_status}")
         return await _edit(
             query,
             f"Sniper #{sniper_id} {new_status}.",
@@ -518,7 +517,6 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         if field in allowed:
             s = await get_or_create_settings()
             await update_settings(s["id"], **{col_map[field]: val})
-        await query.answer(f"{field} → {'ON' if val else 'OFF'}")
         s2 = await get_or_create_settings()
         return await _edit(
             query,
@@ -572,7 +570,6 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         val = data.split(":")[2] == "true"
         s = await get_or_create_settings()
         await update_settings(s["id"], pin_lock_enabled=val)
-        await query.answer(f"PIN {'enabled' if val else 'disabled'}")
         return await _edit(
             query,
             f"🔒 PIN Lock *{'enabled' if val else 'disabled'}*.",
