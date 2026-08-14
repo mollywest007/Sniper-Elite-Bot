@@ -32,7 +32,7 @@ async def post_init(app: Application) -> None:
         logger.warning("Could not clear description: %s", e)
     try:
         await app.bot.set_my_commands([
-            BotCommand("start", "Open the main dashboard"),
+            BotCommand("start", "Open the sniper menu"),
             BotCommand("menu", "Return to the main menu"),
             BotCommand("wallet", "View and manage your wallet"),
             BotCommand("set", "Configure buy amount, slippage or fee"),

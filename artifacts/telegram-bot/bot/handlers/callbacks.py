@@ -45,7 +45,7 @@ async def _edit(query, text: str, markup: InlineKeyboardMarkup) -> None:
         return
 
     try:
-        # Keep the branded banner on the home dashboard while sending it as a
+        # Keep the branded banner on the home menu while sending it as a
         # new message rather than editing the old caption.
         if text.startswith("⚡ *PHASE SNIPE* ⚡") and len(text) <= 1024:
             try:

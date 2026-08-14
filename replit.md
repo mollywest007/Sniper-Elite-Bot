@@ -1,63 +1,59 @@
-# Phase Snipe
+# Phase Snipe Telegram Bot
 
-Solana token sniping bot with a Telegram interface and a React dashboard for managing wallets, trades, snipers, copy trades, limit orders, and DCA setups.
+Phase Snipe is a Telegram-only Solana sniper bot. Users manage wallets, configure
+sniping, inspect token markets, and execute trades through Telegram inline menus
+and commands. There is no website or browser dashboard.
 
 ## Run & Operate
 
-- Frontend workflow: `PORT=5000 BASE_PATH=/ pnpm --filter @workspace/phase-snipe run dev` (port 5000, webview)
-- API Server workflow: `PORT=8080 pnpm --filter @workspace/api-server run start` (port 8080, console)
-- Telegram Bot workflow: `cd artifacts/telegram-bot && python3 main.py` (console, long-polling)
-- After changing API server code: run `pnpm --filter @workspace/api-server run build` in bash first, then restart the workflow
-- After changing Python bot code: just restart the "Telegram Bot" workflow (no build step needed)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- Telegram Bot workflow: `cd artifacts/telegram-bot && uv run python main.py`
+- After changing Python bot code: restart the **Telegram Bot** workflow.
 - Required secrets: `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`
+- Optional environment variables: `BOT_WALLET_ADDRESS`, `BOT_WALLET_PRIVATE_KEY`,
+  `ADMIN_USERNAME`, `COOLDOWN_MS`
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
-- Telegram Bot: Python 3.11 + python-telegram-bot 21.3 + asyncpg (long-polling)
+- Python 3.11
+- `python-telegram-bot` 21.3 with async job queue
+- PostgreSQL via `asyncpg`
+- Solana JSON-RPC, Jupiter, Dexscreener, and Pump.fun HTTP integrations
 
 ## Where things live
 
-- `artifacts/telegram-bot/` — Python Telegram bot (replaces old grammY/Node.js bot)
-  - `main.py` — entry point, registers handlers + job queue monitors
-  - `bot/config.py` — all env vars (TELEGRAM_BOT_TOKEN, DATABASE_URL, etc.)
-  - `bot/handlers/callbacks.py` — all inline-button callback logic
-  - `bot/handlers/messages.py` — text message handler (CA paste, pending flows)
-  - `bot/handlers/commands.py` — /start /menu /wallet /help /set
-  - `bot/handlers/monitors.py` — background jobs: wallet balance watcher + pump.fun stream
-  - `bot/keyboards.py` — InlineKeyboardMarkup builders
-  - `bot/screens.py` — message text builders
-  - `bot/database.py` — asyncpg pool + all DB query functions
-  - `bot/state.py` — in-memory state (sets, dicts, rate-limiter)
-- `lib/db/src/schema/index.ts` — source of truth for DB schema (Drizzle ORM)
-- `artifacts/api-server/src/routes/` — REST API routes for the React dashboard
+- `artifacts/telegram-bot/main.py` — Telegram polling entry point
+- `artifacts/telegram-bot/bot/handlers/commands.py` — slash commands
+- `artifacts/telegram-bot/bot/handlers/callbacks.py` — inline-button actions
+- `artifacts/telegram-bot/bot/handlers/messages.py` — token-address and settings input
+- `artifacts/telegram-bot/bot/handlers/monitors.py` — wallet and market monitors
+- `artifacts/telegram-bot/bot/database.py` — async database access
+- `artifacts/telegram-bot/bot/keyboards.py` — Telegram inline keyboards
+- `artifacts/telegram-bot/bot/screens.py` — Telegram message content
+- `lib/db/src/schema/index.ts` — database schema
+
+## Telegram commands
+
+- `/start` — open the main sniper menu
+- `/menu` — return to the main menu
+- `/wallet` — view and manage the wallet
+- `/set` — configure buy amount, slippage, or priority fee
+- `/help` — show help and support information
+
+## Setup
+
+After a fresh import:
+
+1. Install the Python dependencies through the Telegram Bot workflow (`uv` does
+   this automatically).
+2. Ensure `DATABASE_URL` and `TELEGRAM_BOT_TOKEN` are set as Replit Secrets.
+3. Start the **Telegram Bot** workflow.
+4. Send `/start` to the bot in Telegram.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
-
-## Product
-
-_Describe the high-level user-facing capabilities of this app once they exist._
-
-## User preferences
-
-_Populate as you build — explicit user instructions worth remembering across sessions._
-
-## Gotchas
-
-- After changing API server code: run `pnpm --filter @workspace/api-server run build` first, then restart the workflow. The `dev` script now skips the build step so it starts instantly.
-- The API artifact health check hits `GET /api` — it must return HTTP 200 or Replit kills the process. A root handler in `routes/index.ts` keeps this alive.
-- Frontend vite config requires both `PORT` and `BASE_PATH` env vars — injected automatically by Replit's workflow runner.
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- Telegram is the only user interface; web frontend and API workflows are not
+  part of the runtime.
+- The bot uses async polling and an asyncpg connection pool for responsive
+  Telegram interactions.
+- Solana market and chain access stays in the bot so Telegram actions do not
+  require a separate web server.
