@@ -16,6 +16,17 @@ from bot.handlers.monitors import monitor_wallet
 from bot.logger import logger
 
 
+async def on_error(update: object, context) -> None:
+    """Keep polling alive and make handler failures visible in workflow logs."""
+    error = context.error
+    logger.error(
+        "Unhandled Telegram update error for %s: %s",
+        type(update).__name__,
+        error,
+        exc_info=(type(error), error, error.__traceback__) if error else None,
+    )
+
+
 async def post_init(app: Application) -> None:
     from bot.state import wallet_generated
     await init_pool()
@@ -72,6 +83,7 @@ def main() -> None:
     app.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
     )
+    app.add_error_handler(on_error)
 
     jq = app.job_queue
     jq.run_repeating(monitor_wallet, interval=15, first=15)

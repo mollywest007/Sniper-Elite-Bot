@@ -5,7 +5,7 @@ import string
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
-from telegram.error import BadRequest
+from telegram.error import BadRequest, TelegramError
 
 from ..database import (
     get_wallet_balance, sync_wallet_balance, touch_bot_user,
@@ -39,34 +39,19 @@ _BANNER_PATH = os.path.join(
 )
 
 
-async def _edit(query, text: str, markup: InlineKeyboardMarkup) -> None:
-    """Update the current Telegram screen with one API call when possible."""
-    message = query.message
-    if not message:
-        return
-
-    try:
-        if message.photo:
-            if len(text) > 1024:
-                raise ValueError("Telegram photo captions are limited to 1024 characters")
-            await message.edit_caption(
+async def _send_replacement(message, text: str, markup: InlineKeyboardMarkup) -> None:
+    """Send a new screen so Telegram does not mark the message as edited."""
+    if message.photo and len(text) <= 1024:
+        try:
+            await message.chat.send_photo(
+                photo=message.photo[-1].file_id,
                 caption=text,
                 parse_mode=ParseMode.MARKDOWN,
                 reply_markup=markup,
             )
-        else:
-            await message.edit_text(
-                text,
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=markup,
-            )
-        return
-    except BadRequest as e:
-        if "not modified" in str(e).lower():
             return
-        logger.debug("Could not edit Telegram screen, sending replacement: %s", e)
-    except ValueError:
-        logger.debug("Telegram screen is too long for an in-place edit; sending replacement")
+        except TelegramError as e:
+            logger.debug("Could not preserve banner on replacement: %s", e)
 
     try:
         await message.chat.send_message(
@@ -74,8 +59,23 @@ async def _edit(query, text: str, markup: InlineKeyboardMarkup) -> None:
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=markup,
         )
-        asyncio.create_task(_delete_replaced_message(message))
     except BadRequest as e:
+        # A malformed or stale Markdown fragment should not leave the user
+        # without a screen. Telegram's plain-text fallback is still useful.
+        logger.debug("Could not send formatted replacement: %s", e)
+        await message.chat.send_message(text, reply_markup=markup)
+
+
+async def _edit(query, text: str, markup: InlineKeyboardMarkup) -> None:
+    """Replace the current screen without creating Telegram's 'edited' label."""
+    message = query.message
+    if not message:
+        return
+
+    try:
+        await _send_replacement(message, text, markup)
+        asyncio.create_task(_delete_replaced_message(message))
+    except TelegramError as e:
         logger.warning("Could not send Telegram screen replacement: %s", e)
 
 
@@ -83,7 +83,7 @@ async def _delete_replaced_message(message) -> None:
     """Remove the previous screen without delaying the newly sent one."""
     try:
         await message.delete()
-    except BadRequest as e:
+    except TelegramError as e:
         if "not found" not in str(e).lower() and "message to delete" not in str(e).lower():
             logger.debug("Could not remove replaced Telegram message: %s", e)
 
