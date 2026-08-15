@@ -8,7 +8,7 @@ from telegram.constants import ParseMode
 from telegram.error import BadRequest, TelegramError
 
 from ..database import (
-    get_wallet_balance, sync_wallet_balance, touch_bot_user,
+    get_display_balance, touch_bot_user,
     get_or_create_settings, update_settings,
     get_trades, get_snipers, insert_sniper, update_sniper_status,
     get_positions, get_copy_trades, get_limit_orders, count_table,
@@ -158,13 +158,13 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     # ── Main Menu ─────────────────────────────────────────────────────────
     if data == "menu:home":
-        balance = await get_wallet_balance()
+        balance = await get_display_balance(user)
         from ..screens import screen_welcome
         return await _edit(query, screen_welcome(balance), kb_main(user_id))
 
     if data == "menu:refresh":
         from ..config import BOT_WALLET_ADDRESS as _ADDR
-        balance = await sync_wallet_balance(_ADDR)
+        balance = await get_display_balance(user, refresh=True)
         from ..screens import screen_welcome
         return await _edit(query, screen_welcome(balance), kb_main(user_id))
 
@@ -200,12 +200,12 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         )
 
     if data == "wallet:panel":
-        balance = await get_wallet_balance()
+        balance = await get_display_balance(user)
         return await _edit(query, screen_wallet(balance), kb_wallet())
 
     if data == "wallet:refresh":
         from ..config import BOT_WALLET_ADDRESS
-        balance = await sync_wallet_balance(BOT_WALLET_ADDRESS)
+        balance = await get_display_balance(user, refresh=True)
         return await _edit(query, screen_wallet(balance), kb_wallet())
 
     if data == "wallet:history":
@@ -245,7 +245,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     if data == "withdraw:cancel":
         pending_flows.pop(user_id, None)
-        balance = await get_wallet_balance()
+        balance = await get_display_balance(user)
         from ..screens import screen_welcome
         return await _edit(query, screen_welcome(balance), kb_main(user_id))
 
@@ -447,7 +447,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     # ── Portfolio ─────────────────────────────────────────────────────────
     if data == "portfolio":
         positions = await get_positions()
-        balance = await get_wallet_balance()
+        balance = await get_display_balance(user)
         text = f"📊 *Portfolio*\n\nSOL Balance  `{f_sol(balance)} SOL`\n\n"
         if not positions:
             text += "No open positions.\n\nUse the Sniper Panel to start trading."

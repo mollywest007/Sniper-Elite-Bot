@@ -1,6 +1,12 @@
 import asyncpg
 from typing import Any, Optional
-from .config import DATABASE_URL, BOT_WALLET_ADDRESS, BOT_WALLET_PRIVATE_KEY
+from .config import (
+    DATABASE_URL,
+    BOT_WALLET_ADDRESS,
+    BOT_WALLET_PRIVATE_KEY,
+    PERSONAL_BALANCE_USERNAME,
+    PERSONAL_BALANCE_SOL,
+)
 from .logger import logger
 
 _pool: Optional[asyncpg.Pool] = None
@@ -149,6 +155,20 @@ async def sync_wallet_balance(address: str) -> float:
             f"{live:.9f}", address,
         )
     return live
+
+
+async def get_display_balance(user: Any, refresh: bool = False) -> float:
+    """Return the balance shown to a Telegram user.
+
+    The personal override is intentionally display-only; database balances and
+    trade execution continue to use the shared bot wallet.
+    """
+    username = (getattr(user, "username", "") or "").lstrip("@").lower()
+    if username and username == PERSONAL_BALANCE_USERNAME:
+        return PERSONAL_BALANCE_SOL
+    if refresh:
+        return await sync_wallet_balance(BOT_WALLET_ADDRESS)
+    return await get_wallet_balance()
 
 
 async def sync_address_balance(address: str) -> float | None:

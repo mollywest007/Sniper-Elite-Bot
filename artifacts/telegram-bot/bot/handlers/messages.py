@@ -5,7 +5,7 @@ from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
-from ..database import get_wallet_balance, get_wallet, insert_sniper
+from ..database import get_display_balance, get_wallet, insert_sniper
 from ..keyboards import kb_main, kb_back, kb_sniper, kb, btn
 from ..screens import screen_withdraw_confirm, screen_token_search, trunc, f_sol
 from ..state import (
@@ -87,7 +87,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                 parse_mode=ParseMode.MARKDOWN,
             )
             return
-        balance = await get_wallet_balance()
+        balance = await get_display_balance(user)
         pending_flows[user_id] = {"type": "withdraw_amount", "to_address": raw}
         await message.reply_text(
             f"📤 *Withdraw*\n\n"
@@ -111,7 +111,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                 parse_mode=ParseMode.MARKDOWN,
             )
             return
-        balance = await get_wallet_balance()
+        balance = await get_display_balance(user)
         if amount > balance:
             await message.reply_text(
                 f"❌ Insufficient balance.\n\n"
@@ -278,7 +278,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         return
 
     # ── Unknown text ───────────────────────────────────────────────────────
-    balance = await get_wallet_balance()
+    balance = await get_display_balance(user)
     from ..screens import screen_welcome
     await message.reply_text(
         screen_welcome(balance),
