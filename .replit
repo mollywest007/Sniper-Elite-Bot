@@ -29,6 +29,7 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+packages = ["postgresql"]
 
 [[ports]]
 localPort = 3000
