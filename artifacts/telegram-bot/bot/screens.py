@@ -75,8 +75,9 @@ def screen_deposit() -> str:
         "Send SOL to this address:\n\n"
         f"`{BOT_WALLET_ADDRESS}`\n\n"
         "Tap the address above to copy it.\n\n"
-        "✅ Deposits are detected automatically\n"
-        "⚡ Confirmations take ~1–2 seconds on Solana"
+        "⚠️ This is the shared bot wallet address. Your internal balance is "
+        "credited only when a verified deposit is attributed to your Telegram account.\n"
+        "⚡ Keep your transaction signature for verification."
     )
 
 

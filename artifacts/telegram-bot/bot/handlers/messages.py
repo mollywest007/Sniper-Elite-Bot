@@ -5,7 +5,7 @@ from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
-from ..database import get_display_balance, get_wallet, insert_sniper
+from ..database import get_display_balance, get_user_balance, get_wallet, execute_user_trade
 from ..keyboards import kb_main, kb_back, kb_sniper, kb, btn
 from ..screens import screen_withdraw_confirm, screen_token_search, trunc, f_sol
 from ..state import (
@@ -31,18 +31,38 @@ async def _execute_buy(update: Update, user_id: int, contract_address: str) -> N
     cfg = get_sniper_config(user_id)
     tx = _rand_tx()
     w = await get_wallet()
-    if w:
-        try:
-            await insert_sniper(
-                wallet_id=w["id"],
-                contract_address=contract_address,
-                buy_amount_sol=cfg["buy_amount"],
-                slippage_percent=cfg["slippage"],
-                priority_fee=cfg["priority_fee"],
-                status="sniped",
-            )
-        except Exception as e:
-            logger.error("insert_sniper error: %s", e)
+    if not w:
+        await update.message.reply_text(
+            "❌ The shared Solana wallet is not configured yet.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    try:
+        await execute_user_trade(
+            user_id=user_id,
+            wallet_id=w["id"],
+            contract_address=contract_address,
+            amount_sol=cfg["buy_amount"],
+            slippage_percent=cfg["slippage"],
+            priority_fee=cfg["priority_fee"],
+            tx_hash=tx,
+        )
+    except ValueError:
+        balance = await get_user_balance(user_id)
+        await update.message.reply_text(
+            f"❌ *Insufficient balance*\n\n"
+            f"Available  `{f_sol(balance)} SOL`\n"
+            f"Required   `{f_sol(cfg['buy_amount'])} SOL`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+    except Exception as e:
+        logger.error("User trade error for %s: %s", user_id, e)
+        await update.message.reply_text(
+            "❌ Could not record this trade. Your balance was not changed.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
 
     text = (
         f"🎯 *Snipe Executed!*\n\n"

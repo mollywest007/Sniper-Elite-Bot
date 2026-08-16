@@ -8,11 +8,11 @@ from telegram.constants import ParseMode
 from telegram.error import BadRequest, TelegramError
 
 from ..database import (
-    get_display_balance, touch_bot_user,
+    get_display_balance, get_user_balance, touch_bot_user,
     get_or_create_settings, update_settings,
-    get_trades, get_snipers, insert_sniper, update_sniper_status,
+    get_trades, get_user_transactions, get_snipers, execute_user_trade, update_sniper_status,
     get_positions, get_copy_trades, get_limit_orders, count_table,
-    get_wallet, mark_wallet_generated,
+    get_wallet, mark_wallet_generated, debit_user_balance,
 )
 from ..keyboards import (
     kb_main, kb_back, kb_sniper, kb_wallet, kb_sniper_edit,
@@ -107,18 +107,38 @@ async def _execute_buy(query, user_id: int, contract_address: str) -> None:
     cfg = get_sniper_config(user_id)
     tx = _rand_tx()
     w = await get_wallet()
-    if w:
-        try:
-            await insert_sniper(
-                wallet_id=w["id"],
-                contract_address=contract_address,
-                buy_amount_sol=cfg["buy_amount"],
-                slippage_percent=cfg["slippage"],
-                priority_fee=cfg["priority_fee"],
-                status="sniped",
-            )
-        except Exception as e:
-            logger.error("insert_sniper error: %s", e)
+    if not w:
+        return await _edit(
+            query,
+            "❌ The shared Solana wallet is not configured yet.",
+            kb_back("sniper:panel", "◀ Sniper Panel"),
+        )
+    try:
+        await execute_user_trade(
+            user_id=user_id,
+            wallet_id=w["id"],
+            contract_address=contract_address,
+            amount_sol=cfg["buy_amount"],
+            slippage_percent=cfg["slippage"],
+            priority_fee=cfg["priority_fee"],
+            tx_hash=tx,
+        )
+    except ValueError:
+        balance = await get_user_balance(user_id)
+        return await _edit(
+            query,
+            f"❌ *Insufficient balance*\n\n"
+            f"Available  `{f_sol(balance)} SOL`\n"
+            f"Required   `{f_sol(cfg['buy_amount'])} SOL`",
+            kb_back("sniper:panel", "◀ Sniper Panel"),
+        )
+    except Exception as e:
+        logger.error("User trade error for %s: %s", user_id, e)
+        return await _edit(
+            query,
+            "❌ Could not record this trade. Your balance was not changed.",
+            kb_back("sniper:panel", "◀ Sniper Panel"),
+        )
 
     text = (
         f"🎯 *Snipe Executed!*\n\n"
@@ -209,16 +229,17 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return await _edit(query, screen_wallet(balance), kb_wallet())
 
     if data == "wallet:history":
-        trades = await get_trades(8)
+        trades = await get_user_transactions(user_id, 8)
         text = "📋 *Transaction History*\n\n"
         if not trades:
             text += "No transactions yet."
         else:
             for t in trades:
-                dot = "🟢" if t["type"] == "buy" else "🔴"
+                amount = float(t["amount_sol"])
+                dot = "🟢" if t["type"] == "deposit" else "🔴"
+                label = t["type"].upper()
                 text += (
-                    f"{dot} {t['type'].upper()}  {t['token_symbol']}  "
-                    f"`{f_sol(t['amount_sol'])} SOL`\n"
+                    f"{dot} {label}  `{f_sol(abs(amount))} SOL`\n"
                     f"   `{trunc(t.get('tx_hash') or '', 8)}`\n"
                 )
         return await _edit(
@@ -255,6 +276,18 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         amount = float(parts[3])
         pending_flows.pop(user_id, None)
         tx = _rand_tx()
+        try:
+            await debit_user_balance(
+                user_id, amount, "withdrawal", tx,
+                f"Withdrawal to {to_addr}",
+            )
+        except ValueError:
+            balance = await get_user_balance(user_id)
+            return await _edit(
+                query,
+                f"❌ *Insufficient balance*\n\nAvailable  `{f_sol(balance)} SOL`",
+                kb_back("wallet:panel", "◀ Wallet"),
+            )
         return await _edit(
             query,
             f"✅ *Withdrawal Submitted*\n\n"
@@ -404,7 +437,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return await _edit(query, screen_sniper_edit(cfg), kb_sniper_edit(cfg))
 
     if data == "sniper:list":
-        snipers = await get_snipers(8)
+        snipers = await get_snipers(8, user_id)
         text = "📊 *My Snipers*\n\n"
         if not snipers:
             text += "No snipers yet.\n\nPaste a CA to create your first sniper."
@@ -427,7 +460,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         action = parts[2]
         sniper_id = int(parts[3])
         new_status = "stopped" if action == "stop" else "monitoring"
-        await update_sniper_status(sniper_id, new_status)
+        await update_sniper_status(sniper_id, new_status, user_id)
         return await _edit(
             query,
             f"Sniper #{sniper_id} {new_status}.",
@@ -446,7 +479,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     # ── Portfolio ─────────────────────────────────────────────────────────
     if data == "portfolio":
-        positions = await get_positions()
+        positions = await get_positions(user_id)
         balance = await get_display_balance(user)
         text = f"📊 *Portfolio*\n\nSOL Balance  `{f_sol(balance)} SOL`\n\n"
         if not positions:
@@ -650,7 +683,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     # ── Copy Trades ───────────────────────────────────────────────────────
     if data == "copy:menu":
-        cts = await get_copy_trades(5)
+        cts = await get_copy_trades(5, user_id)
         text = "📋 *Copy Trading*\n\n"
         if not cts:
             text += "No copy targets yet.\n\nUse: `copy <wallet> [sol]`"
@@ -664,7 +697,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return await _edit(query, text, kb_back("sniper:panel", "◀ Sniper Panel"))
 
     if data == "limits:menu":
-        orders = await get_limit_orders(5)
+        orders = await get_limit_orders(5, user_id)
         text = "🎚 *Limit Orders*\n\n"
         if not orders:
             text += "No limit orders.\n\nUse: `limit <ca> tp:<pct> sl:<pct>`"

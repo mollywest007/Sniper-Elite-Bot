@@ -15,8 +15,6 @@ tracked_wallet_address: dict[int, str] = {}
 # last known SOL balance per tracked address
 last_known_tracked_balance: dict[str, float] = {}
 
-last_known_balance: dict[str, float] = {"sol": 0.0}
-
 
 def is_rate_limited(user_id: int, cooldown_ms: int = 300) -> bool:
     now = time.time() * 1000
