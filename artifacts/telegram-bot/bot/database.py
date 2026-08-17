@@ -107,6 +107,11 @@ async def seed() -> None:
             """CREATE INDEX IF NOT EXISTS bot_transactions_user_created_idx
                ON bot_transactions(telegram_user_id, created_at DESC)"""
         )
+        await conn.execute(
+            """CREATE UNIQUE INDEX IF NOT EXISTS bot_transactions_type_hash_idx
+               ON bot_transactions(transaction_type, tx_hash)
+               WHERE tx_hash IS NOT NULL"""
+        )
 
 
 async def load_wallet_generated_users() -> set[int]:

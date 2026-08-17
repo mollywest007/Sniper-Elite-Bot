@@ -2,3 +2,4 @@
 - [Python bot architecture](python-bot-architecture.md) — Python bot replaced Node.js grammY bot; uses python-telegram-bot 21.3 + asyncpg; modular layout under artifacts/telegram-bot/bot/.
 - [Post-import/re-clone setup steps](post-import-setup.md) — pnpm install, build api-server, db push, and TELEGRAM_BOT_TOKEN secret are all needed fresh after every import; none are in git.
 - [Telegram bot branding/legitimacy pass](telegram-bot-branding.md) — banner photo + 2-column menu grid redesign to look like established sniper bots; keep new menu items paired, not single-column.
+- [Shared wallet attribution](shared-wallet-ledger.md) — a shared Solana receiving address needs an exact Telegram memo before a deposit can be credited to one user's internal ledger.

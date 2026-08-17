@@ -48,14 +48,15 @@ def screen_welcome(balance: float) -> str:
     )
 
 
-def screen_wallet_generated() -> str:
+def screen_wallet_generated(user_id: int | None = None) -> str:
     return (
-        "✅ *Wallet Generated!*\n\n"
-        "Your Solana wallet has been created and secured.\n\n"
+        "✅ *Wallet Access Ready!*\n\n"
+        "Your private Telegram account ledger is ready.\n\n"
         "📍 *Address*\n"
         f"`{BOT_WALLET_ADDRESS}`\n\n"
-        "🔐 *Private key* · configured and stored in bot\n\n"
-        "_Tap the address to copy it. Send SOL here to fund your wallet._"
+        "🔐 *Execution wallet* · shared bot address\n\n"
+        "_Tap the address to copy it. Deposits are credited to your account "
+        "only when verified with your Telegram memo._"
     )
 
 
@@ -69,15 +70,18 @@ def screen_wallet(balance: float) -> str:
     )
 
 
-def screen_deposit() -> str:
+def screen_deposit(user_id: int | None = None) -> str:
+    memo = f"telegram_user_id:{user_id}" if user_id is not None else "your Telegram user ID"
     return (
         "📥 *Deposit SOL*\n\n"
         "Send SOL to this address:\n\n"
         f"`{BOT_WALLET_ADDRESS}`\n\n"
+        "Include this exact memo in the transfer:\n"
+        f"`{memo}`\n\n"
         "Tap the address above to copy it.\n\n"
-        "⚠️ This is the shared bot wallet address. Your internal balance is "
-        "credited only when a verified deposit is attributed to your Telegram account.\n"
-        "⚡ Keep your transaction signature for verification."
+        "⚠️ This address is shared, so the memo is required to attribute the "
+        "deposit to the correct Telegram account.\n"
+        "⚡ After confirmation, tap *Verify My Deposit*."
     )
 
 

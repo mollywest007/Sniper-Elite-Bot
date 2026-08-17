@@ -5,7 +5,10 @@ from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
-from ..database import get_display_balance, get_user_balance, get_wallet, execute_user_trade
+from ..database import (
+    credit_user_deposit, get_display_balance, get_user_balance, get_wallet,
+    execute_user_trade,
+)
 from ..keyboards import kb_main, kb_back, kb_sniper, kb, btn
 from ..screens import screen_withdraw_confirm, screen_token_search, trunc, f_sol
 from ..state import (
@@ -17,6 +20,7 @@ from ..logger import logger
 
 
 _SOLANA_ADDR_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
+_SOLANA_TX_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{64,128}$")
 
 
 def _is_valid_ca(text: str) -> bool:
@@ -98,6 +102,53 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         return
 
     flow = pending_flows.get(user_id)
+
+    # ── Deposit verification — transaction signature ───────────────────────
+    if flow and flow["type"] == "deposit_tx_hash":
+        pending_flows.pop(user_id, None)
+        if not _SOLANA_TX_RE.match(raw):
+            await message.reply_text(
+                "❌ Invalid transaction signature. Please send the Solana signature.",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+        from ..config import BOT_WALLET_ADDRESS
+        from ..solana import fetch_attributed_deposit
+        amount = await fetch_attributed_deposit(
+            raw, BOT_WALLET_ADDRESS, f"telegram_user_id:{user_id}"
+        )
+        if amount is None:
+            await message.reply_text(
+                "❌ Deposit not verified.\n\n"
+                "Make sure the transaction is confirmed, sends SOL to the shared "
+                "address, and includes your exact Telegram memo.",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb([btn("📥 Deposit Instructions", "deposit:show")]),
+            )
+            return
+        try:
+            balance = await credit_user_deposit(user_id, amount, raw)
+        except Exception as exc:
+            logger.warning(
+                "Could not credit deposit %s for user %s: %s", raw, user_id, exc
+            )
+            await message.reply_text(
+                "❌ This deposit was already credited or could not be recorded.",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+        await message.reply_text(
+            f"✅ *Deposit Credited*\n\n"
+            f"Amount   `{f_sol(amount)} SOL`\n"
+            f"Balance  `{f_sol(balance)} SOL`\n"
+            f"TX       `{trunc(raw, 8)}`",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=kb(
+                [btn("💰 Open Wallet", "wallet:panel")],
+                [btn("📋 TX History", "wallet:history")],
+            ),
+        )
+        return
 
     # ── Withdraw: step 1 — destination address ────────────────────────────
     if flow and flow["type"] == "withdraw_address":

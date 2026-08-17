@@ -51,6 +51,13 @@ def kb_wallet() -> InlineKeyboardMarkup:
     )
 
 
+def kb_deposit() -> InlineKeyboardMarkup:
+    return kb(
+        [btn("✅ Verify My Deposit", "deposit:verify")],
+        [btn("◀ Wallet", "wallet:panel")],
+    )
+
+
 def kb_sniper_edit(cfg: dict) -> InlineKeyboardMarkup:
     f = cfg
     return kb(

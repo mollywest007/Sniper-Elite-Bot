@@ -15,7 +15,7 @@ from ..database import (
     get_wallet, mark_wallet_generated, debit_user_balance,
 )
 from ..keyboards import (
-    kb_main, kb_back, kb_sniper, kb_wallet, kb_sniper_edit,
+    kb_main, kb_back, kb_sniper, kb_wallet, kb_deposit, kb_sniper_edit,
     kb_alerts, btn, kb,
 )
 from ..screens import (
@@ -215,7 +215,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             await mark_wallet_generated(user_id)
         return await _edit(
             query,
-            screen_wallet_generated(),
+            screen_wallet_generated(user_id),
             kb([btn("💰 Open Wallet", "wallet:panel")], [btn("◀ Main Menu", "menu:home")]),
         )
 
@@ -250,8 +250,18 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     # ── Deposit ───────────────────────────────────────────────────────────
     if data == "deposit:show":
         return await _edit(
-            query, screen_deposit(),
-            kb([btn("◀ Main Menu", "menu:home")]),
+            query, screen_deposit(user_id),
+            kb_deposit(),
+        )
+
+    if data == "deposit:verify":
+        pending_flows[user_id] = {"type": "deposit_tx_hash"}
+        return await _edit(
+            query,
+            "✅ *Verify Deposit*\n\n"
+            "Send the confirmed Solana transaction signature for your deposit.\n\n"
+            f"Your required memo is `telegram_user_id:{user_id}`.",
+            kb_back("deposit:show", "❌ Cancel"),
         )
 
     # ── Withdraw ──────────────────────────────────────────────────────────
