@@ -77,8 +77,7 @@ def screen_deposit(user_id: int | None = None) -> str:
         f"`{BOT_WALLET_ADDRESS}`\n\n"
         "Tap the address above to copy it.\n\n"
         "⚠️ This address is shared. After the transfer is confirmed, send the "
-        "transaction hash to verify the deposit.\n"
-        "⚡ No Telegram ID or memo is required."
+        "transaction hash to verify the deposit."
     )
 
 

@@ -259,8 +259,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return await _edit(
             query,
             "✅ *Verify Deposit*\n\n"
-            "Send the confirmed Solana transaction hash for your deposit.\n\n"
-            "No Telegram ID or memo is required.",
+            "Send the confirmed Solana transaction hash for your deposit.",
             kb_back("deposit:show", "❌ Cancel"),
         )
 
