@@ -13,3 +13,13 @@ After a fresh GitHub import or clone, all three workflows fail until these steps
 **Why:** None of these are captured in git (build artifacts, node_modules, DB state, secrets), so every fresh import starts from zero on all four even though the workflow commands themselves are already configured correctly in `.replit`.
 
 **How to apply:** Run all four before assuming a workflow failure is a real code bug — check logs first; `MODULE_NOT_FOUND ./dist/...`, `vite: not found`, `KeyError: 'TELEGRAM_BOT_TOKEN'`, and `UndefinedTableError: relation "wallets" does not exist` are all setup-step symptoms, not bugs.
+
+If the Replit package firewall blocks a locked tarball during install, check the
+latest compatible release and update only the direct dependency that pulled it
+in; do not bypass the firewall.
+
+**Why:** Imported lockfiles can reference package artifacts that are no longer
+available through the firewall even when the dependency range remains valid.
+
+**How to apply:** Confirm the package's latest version first, then update the
+direct workspace dependency and regenerate the lockfile before retrying install.
