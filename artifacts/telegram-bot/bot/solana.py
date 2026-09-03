@@ -1,4 +1,3 @@
-import json
 import httpx
 from .logger import logger
 
@@ -50,14 +49,10 @@ async def fetch_sol_balance(address: str) -> float | None:
         return None
 
 
-async def fetch_attributed_deposit(
-    signature: str, destination_address: str, required_memo: str
+async def fetch_deposit(
+    signature: str, destination_address: str
 ) -> float | None:
-    """Return the SOL received by the shared wallet for a matching memo.
-
-    A shared receiving address cannot identify the sender by itself. Requiring
-    an exact user memo gives the internal ledger an explicit ownership signal.
-    """
+    """Return the SOL received by the shared wallet in a confirmed transaction."""
     payload = {
         "jsonrpc": "2.0",
         "id": 1,
@@ -82,9 +77,6 @@ async def fetch_attributed_deposit(
         signatures = result.get("transaction", {}).get("signatures", [])
         if signature not in signatures:
             return None
-        if required_memo not in json.dumps(result, separators=(",", ":")):
-            return None
-
         account_keys = result.get("transaction", {}).get("message", {}).get(
             "accountKeys", []
         )

@@ -7,7 +7,7 @@ from telegram.constants import ParseMode
 
 from ..database import (
     credit_user_deposit, get_display_balance, get_user_balance, get_wallet,
-    execute_user_trade,
+    execute_user_trade, DepositAlreadyCreditedError,
 )
 from ..keyboards import kb_main, kb_back, kb_sniper, kb, btn
 from ..screens import screen_withdraw_confirm, screen_token_search, trunc, f_sol
@@ -113,21 +113,25 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             )
             return
         from ..config import BOT_WALLET_ADDRESS
-        from ..solana import fetch_attributed_deposit
-        amount = await fetch_attributed_deposit(
-            raw, BOT_WALLET_ADDRESS, f"telegram_user_id:{user_id}"
-        )
+        from ..solana import fetch_deposit
+        amount = await fetch_deposit(raw, BOT_WALLET_ADDRESS)
         if amount is None:
             await message.reply_text(
                 "❌ Deposit not verified.\n\n"
-                "Make sure the transaction is confirmed, sends SOL to the shared "
-                "address, and includes your exact Telegram memo.",
+                "Make sure the transaction is confirmed and sends SOL to the "
+                "shared deposit address.",
                 parse_mode=ParseMode.MARKDOWN,
                 reply_markup=kb([btn("📥 Deposit Instructions", "deposit:show")]),
             )
             return
         try:
             balance = await credit_user_deposit(user_id, amount, raw)
+        except DepositAlreadyCreditedError:
+            await message.reply_text(
+                "❌ This transaction hash has already been used to credit an account.",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
         except Exception as exc:
             logger.warning(
                 "Could not credit deposit %s for user %s: %s", raw, user_id, exc

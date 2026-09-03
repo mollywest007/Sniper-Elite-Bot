@@ -71,17 +71,14 @@ def screen_wallet(balance: float) -> str:
 
 
 def screen_deposit(user_id: int | None = None) -> str:
-    memo = f"telegram_user_id:{user_id}" if user_id is not None else "your Telegram user ID"
     return (
         "📥 *Deposit SOL*\n\n"
         "Send SOL to this address:\n\n"
         f"`{BOT_WALLET_ADDRESS}`\n\n"
-        "Include this exact memo in the transfer:\n"
-        f"`{memo}`\n\n"
         "Tap the address above to copy it.\n\n"
-        "⚠️ This address is shared, so the memo is required to attribute the "
-        "deposit to the correct Telegram account.\n"
-        "⚡ After confirmation, tap *Verify My Deposit*."
+        "⚠️ This address is shared. After the transfer is confirmed, send the "
+        "transaction hash to verify the deposit.\n"
+        "⚡ No Telegram ID or memo is required."
     )
 
 

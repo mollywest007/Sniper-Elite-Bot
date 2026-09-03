@@ -9,6 +9,10 @@ from .logger import logger
 _pool: Optional[asyncpg.Pool] = None
 
 
+class DepositAlreadyCreditedError(RuntimeError):
+    """Raised when a transaction hash has already credited an account."""
+
+
 def _dsn() -> str:
     url = DATABASE_URL
     if url.startswith("postgres://"):
@@ -109,6 +113,7 @@ async def seed() -> None:
         )
         await conn.execute(
             """CREATE UNIQUE INDEX IF NOT EXISTS bot_transactions_type_hash_idx
+               -- A verified deposit hash may only credit one Telegram account.
                ON bot_transactions(transaction_type, tx_hash)
                WHERE tx_hash IS NOT NULL"""
         )
@@ -299,9 +304,14 @@ async def credit_user_deposit(
     """Credit a deposit after an external/on-chain verifier attributes it."""
     if amount_sol <= 0 or not tx_hash:
         raise ValueError("Deposit amount and transaction hash are required")
-    return await _change_user_balance(
-        user_id, amount_sol, "deposit", tx_hash=tx_hash, description=description
-    )
+    try:
+        return await _change_user_balance(
+            user_id, amount_sol, "deposit", tx_hash=tx_hash, description=description
+        )
+    except asyncpg.UniqueViolationError as exc:
+        raise DepositAlreadyCreditedError(
+            "This deposit transaction hash has already been credited"
+        ) from exc
 
 
 async def debit_user_balance(
