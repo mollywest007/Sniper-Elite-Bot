@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 from .logger import logger
 
@@ -66,31 +67,92 @@ async def fetch_deposit(
             },
         ],
     }
-    try:
-        resp = await _http_client().post(SOLANA_RPC, json=payload)
-        if resp.status_code != 200:
-            return None
-        data = resp.json()
-        result = data.get("result")
-        if not result or result.get("meta", {}).get("err") is not None:
-            return None
-        signatures = result.get("transaction", {}).get("signatures", [])
-        if signature not in signatures:
-            return None
-        account_keys = result.get("transaction", {}).get("message", {}).get(
-            "accountKeys", []
-        )
-        for index, account in enumerate(account_keys):
-            address = account.get("pubkey") if isinstance(account, dict) else account
-            if address != destination_address:
-                continue
-            meta = result.get("meta", {})
-            pre = meta.get("preBalances", [])
-            post = meta.get("postBalances", [])
-            if index >= len(pre) or index >= len(post):
-                return None
-            lamports = post[index] - pre[index]
-            return lamports / LAMPORTS_PER_SOL if lamports > 0 else None
-    except Exception as exc:
-        logger.error("Solana deposit verification error for %s: %s", signature, exc)
+    short_signature = f"{signature[:8]}...{signature[-8:]}"
+    for attempt in range(3):
+        try:
+            resp = await _http_client().post(SOLANA_RPC, json=payload)
+            if resp.status_code != 200:
+                logger.warning(
+                    "Deposit lookup returned HTTP %s for %s",
+                    resp.status_code,
+                    short_signature,
+                )
+            else:
+                data = resp.json()
+                if data.get("error"):
+                    error = data["error"]
+                    logger.warning(
+                        "Deposit lookup RPC error for %s: %s",
+                        short_signature,
+                        error.get("message", "unknown RPC error"),
+                    )
+                else:
+                    result = data.get("result")
+                    if not result:
+                        logger.info(
+                            "Deposit transaction %s is not visible yet (attempt %d)",
+                            short_signature,
+                            attempt + 1,
+                        )
+                    elif result.get("meta", {}).get("err") is not None:
+                        logger.info(
+                            "Deposit transaction %s failed on-chain",
+                            short_signature,
+                        )
+                        return None
+                    else:
+                        signatures = result.get("transaction", {}).get("signatures", [])
+                        if signature not in signatures:
+                            logger.warning(
+                                "Deposit response did not match requested signature %s",
+                                short_signature,
+                            )
+                            return None
+                        account_keys = result.get("transaction", {}).get(
+                            "message", {}
+                        ).get("accountKeys", [])
+                        destination_index = next(
+                            (
+                                index
+                                for index, account in enumerate(account_keys)
+                                if (
+                                    account.get("pubkey")
+                                    if isinstance(account, dict)
+                                    else account
+                                )
+                                == destination_address
+                            ),
+                            None,
+                        )
+                        if destination_index is None:
+                            logger.info(
+                                "Deposit transaction %s did not include the deposit address",
+                                short_signature,
+                            )
+                            return None
+                        meta = result.get("meta", {})
+                        pre = meta.get("preBalances", [])
+                        post = meta.get("postBalances", [])
+                        if destination_index >= len(pre) or destination_index >= len(post):
+                            logger.warning(
+                                "Deposit transaction %s has incomplete balance data",
+                                short_signature,
+                            )
+                            return None
+                        lamports = post[destination_index] - pre[destination_index]
+                        if lamports <= 0:
+                            logger.info(
+                                "Deposit transaction %s did not increase the deposit address",
+                                short_signature,
+                            )
+                            return None
+                        return lamports / LAMPORTS_PER_SOL
+        except Exception as exc:
+            logger.error(
+                "Solana deposit verification error for %s: %s",
+                short_signature,
+                exc,
+            )
+        if attempt < 2:
+            await asyncio.sleep(1)
     return None

@@ -1,6 +1,7 @@
 import re
 import random
 import string
+from urllib.parse import urlparse
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
@@ -25,6 +26,14 @@ _SOLANA_TX_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{64,128}$")
 
 def _is_valid_ca(text: str) -> bool:
     return bool(_SOLANA_ADDR_RE.match(text.strip()))
+
+
+def _normalize_tx_hash(text: str) -> str | None:
+    """Accept a transaction signature or a Solscan-style transaction URL."""
+    candidate = text.strip()
+    if candidate.startswith(("http://", "https://")):
+        candidate = urlparse(candidate).path.rstrip("/").split("/")[-1]
+    return candidate if _SOLANA_TX_RE.fullmatch(candidate) else None
 
 
 def _rand_tx() -> str:
@@ -105,28 +114,31 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
     # ── Deposit verification — transaction signature ───────────────────────
     if flow and flow["type"] == "deposit_tx_hash":
-        pending_flows.pop(user_id, None)
-        if not _SOLANA_TX_RE.match(raw):
+        tx_hash = _normalize_tx_hash(raw)
+        if not tx_hash:
             await message.reply_text(
-                "❌ Invalid transaction signature. Please send the Solana signature.",
+                "❌ Invalid transaction hash. Send the Solana signature or a Solscan "
+                "transaction link.",
                 parse_mode=ParseMode.MARKDOWN,
             )
             return
         from ..config import BOT_WALLET_ADDRESS
         from ..solana import fetch_deposit
-        amount = await fetch_deposit(raw, BOT_WALLET_ADDRESS)
+        amount = await fetch_deposit(tx_hash, BOT_WALLET_ADDRESS)
         if amount is None:
             await message.reply_text(
                 "❌ Deposit not verified.\n\n"
                 "Make sure the transaction is confirmed and sends SOL to the "
-                "shared deposit address.",
+                "shared deposit address. You can send the hash again after it "
+                "confirms.",
                 parse_mode=ParseMode.MARKDOWN,
                 reply_markup=kb([btn("📥 Deposit Instructions", "deposit:show")]),
             )
             return
         try:
-            balance = await credit_user_deposit(user_id, amount, raw)
+            balance = await credit_user_deposit(user_id, amount, tx_hash)
         except DepositAlreadyCreditedError:
+            pending_flows.pop(user_id, None)
             await message.reply_text(
                 "❌ This transaction hash has already been used to credit an account.",
                 parse_mode=ParseMode.MARKDOWN,
@@ -141,11 +153,12 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                 parse_mode=ParseMode.MARKDOWN,
             )
             return
+        pending_flows.pop(user_id, None)
         await message.reply_text(
             f"✅ *Deposit Credited*\n\n"
             f"Amount   `{f_sol(amount)} SOL`\n"
             f"Balance  `{f_sol(balance)} SOL`\n"
-            f"TX       `{trunc(raw, 8)}`",
+            f"TX       `{trunc(tx_hash, 8)}`",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=kb(
                 [btn("💰 Open Wallet", "wallet:panel")],
