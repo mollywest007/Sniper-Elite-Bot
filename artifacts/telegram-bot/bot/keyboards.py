@@ -20,7 +20,6 @@ def kb_main(user_id: int | None = None) -> InlineKeyboardMarkup:
         [btn("🚨 Alerts", "alerts:menu"),            btn("⚙️ Settings", "settings:menu")],
         [btn("🔒 Security", "security:menu"),        btn("❓ Help", "help:show")],
         [btn("🔍 Search Token", "search:token"),    btn("🏆 Recent Wins", "wins:show")],
-        [btn("👑 Admin Panel", "admin:panel")],
     ]
     return InlineKeyboardMarkup(rows)
 

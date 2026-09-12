@@ -340,24 +340,6 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         )
         return
 
-    # ── Admin broadcast flow ───────────────────────────────────────────────
-    if flow and flow["type"] == "broadcast_message":
-        pending_flows.pop(user_id, None)
-        sent = 0
-        for uid in list(registered_users):
-            if uid == user_id:
-                continue
-            try:
-                await ctx.bot.send_message(uid, raw, parse_mode=ParseMode.MARKDOWN)
-                sent += 1
-            except Exception:
-                pass
-        await message.reply_text(
-            f"✅ Broadcast sent to {sent} user(s).",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        return
-
     # ── CA paste — auto buy if snipe mode active ───────────────────────────
     if _is_valid_ca(raw):
         if user_id in snipe_mode_active:

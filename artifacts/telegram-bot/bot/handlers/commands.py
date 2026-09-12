@@ -8,7 +8,6 @@ from ..database import get_wallet_valuation, get_or_create_settings, update_sett
 from ..keyboards import kb_main, kb_back
 from ..screens import screen_welcome
 from ..state import registered_users, wallet_generated, is_rate_limited
-from ..config import ADMIN_USERNAME
 from ..logger import logger
 
 _BANNER_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets", "banner.png")

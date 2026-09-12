@@ -10,8 +10,8 @@ from telegram.error import BadRequest, TelegramError
 from ..database import (
     get_display_balance, get_user_balance, touch_bot_user,
     get_or_create_settings, update_settings,
-    get_trades, get_user_transactions, get_snipers, execute_user_trade, update_sniper_status,
-    get_positions, get_copy_trades, get_limit_orders, count_table,
+    get_user_transactions, get_snipers, execute_user_trade, update_sniper_status,
+    get_positions, get_copy_trades, get_limit_orders,
     get_wallet, mark_wallet_generated, debit_user_balance, get_wallet_valuation,
 )
 from ..keyboards import (
@@ -28,7 +28,7 @@ from ..state import (
     tracked_wallet_address,
 )
 from ..market import fetch_recent_solana_gainers
-from ..config import ADMIN_USERNAME, BOT_WALLET_ADDRESS
+from ..config import BOT_WALLET_ADDRESS
 from ..logger import logger
 
 
@@ -93,10 +93,6 @@ async def _touch_user_in_background(user_id: int) -> None:
         await touch_bot_user(user_id)
     except Exception as e:
         logger.debug("Could not record Telegram user activity: %s", e)
-
-
-def _is_admin(user) -> bool:
-    return (user.username or "").lower() == ADMIN_USERNAME.lower()
 
 
 def _rand_tx() -> str:
@@ -648,78 +644,6 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             f"🔒 PIN Lock *{'enabled' if val else 'disabled'}*.",
             kb_back("security:menu", "◀ Security"),
         )
-
-    # ── Admin Panel ───────────────────────────────────────────────────────
-    if data == "admin:panel":
-        if not _is_admin(user):
-            return await _edit(
-                query,
-                "🔒 *Access Denied*\n\nThis panel is restricted.\n\nNeed help? Contact t.me/devBernard",
-                kb_back("menu:home"),
-            )
-        snipers_n = await count_table("snipers")
-        trades_n = await count_table("trades")
-        return await _edit(
-            query,
-            f"👑 *Admin Panel*\n\n"
-            f"Users         `{len(registered_users)}`\n"
-            f"Alert Subs    `{len(alert_subscribers)}`\n"
-            f"Snipe Active  `{len(snipe_mode_active)}`\n"
-            f"Snipers       `{snipers_n}`\n"
-            f"Trades        `{trades_n}`",
-            kb(
-                [btn("📢 Broadcast",   "admin:broadcast")],
-                [btn("📋 All Snipers", "admin:snipers"),
-                 btn("📊 All Trades",  "admin:trades")],
-                [btn("◀ Main Menu", "menu:home")],
-            ),
-        )
-
-    if data == "admin:broadcast":
-        if not _is_admin(user):
-            return await _edit(query, "🔒 Access denied.", kb_back("menu:home"))
-        pending_flows[user_id] = {"type": "broadcast_message"}
-        return await _edit(
-            query,
-            f"📢 *Broadcast Message*\n\n"
-            f"Send your message — it will be delivered to all {len(registered_users)} users:",
-            kb_back("admin:panel", "❌ Cancel"),
-        )
-
-    if data == "admin:snipers":
-        if not _is_admin(user):
-            return await _edit(query, "🔒 Access denied.", kb_back("menu:home"))
-        snipers = await get_snipers(10)
-        text = "📈 *All Snipers*\n\n"
-        if not snipers:
-            text += "None yet."
-        else:
-            for sn in snipers:
-                dot = {"monitoring": "🟡", "sniped": "🟢"}.get(sn["status"], "⚪")
-                text += (
-                    f"{dot} #{sn['id']}  `{trunc(sn.get('contract_address') or '', 6)}`  "
-                    f"{f_sol(sn['buy_amount_sol'])} SOL  {sn['status']}\n"
-                )
-        return await _edit(query, text, kb_back("admin:panel", "◀ Admin"))
-
-    if data == "admin:trades":
-        if not _is_admin(user):
-            return await _edit(query, "🔒 Access denied.", kb_back("menu:home"))
-        trades = await get_trades(10)
-        text = "💹 *All Trades*\n\n"
-        if not trades:
-            text += "None yet."
-        else:
-            from datetime import datetime, timezone
-            for t in trades:
-                dot = "🟢" if t["type"] == "buy" else "🔴"
-                dt = t["executed_at"]
-                date_str = dt.strftime("%Y-%m-%d") if hasattr(dt, "strftime") else str(dt)[:10]
-                text += (
-                    f"{dot} {t['type'].upper()}  {t['token_symbol']}  `{f_sol(t['amount_sol'])} SOL`\n"
-                    f"   `{trunc(t.get('tx_hash') or '', 8)}`  ·  {date_str}\n\n"
-                )
-        return await _edit(query, text, kb_back("admin:panel", "◀ Admin"))
 
     # ── Copy Trades ───────────────────────────────────────────────────────
     if data == "copy:menu":
