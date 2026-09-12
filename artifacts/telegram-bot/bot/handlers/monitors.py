@@ -35,9 +35,9 @@ async def monitor_wallet(ctx: ContextTypes.DEFAULT_TYPE) -> None:
                 continue
 
             last_known_tracked_balance[addr] = balance
-            direction = "📥 Deposit" if delta > 0 else "📤 Withdrawal"
+            direction = "Deposit" if delta > 0 else "Withdrawal"
             text = (
-                f"🚨 *Wallet Alert*\n\n"
+                f"*Wallet Alert*\n\n"
                 f"Event    {direction}\n"
                 f"Amount   `{abs(delta):.4f} SOL`\n"
                 f"Balance  `{balance:.4f} SOL`\n"

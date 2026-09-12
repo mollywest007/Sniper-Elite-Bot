@@ -94,7 +94,7 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if is_rate_limited(user.id):
         return
     text = (
-        "❓ *Help*\n\n"
+        "*Help*\n\n"
         "`/start`   Main menu\n"
         "`/wallet`  Wallet details\n"
         "`/menu`    Return to menu\n"
@@ -142,22 +142,22 @@ async def cmd_set(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             if amount <= 0:
                 raise ValueError
             await update_settings(s["id"], default_buy_amount_sol=f"{amount:.9f}")
-            await update.message.reply_text(f"✅ Buy amount set to `{amount:.4f} SOL`", parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(f"Buy amount set to `{amount:.4f} SOL`", parse_mode=ParseMode.MARKDOWN)
         elif key == "slippage":
             pct = float(val)
             if pct <= 0 or pct > 100:
                 raise ValueError
             await update_settings(s["id"], default_slippage_percent=f"{pct:.2f}")
-            await update.message.reply_text(f"✅ Slippage set to `{pct:.1f}%`", parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(f"Slippage set to `{pct:.1f}%`", parse_mode=ParseMode.MARKDOWN)
         elif key == "fee":
             if val not in ("auto", "low", "medium", "high"):
                 raise ValueError
             await update_settings(s["id"], default_priority_fee=val)
-            await update.message.reply_text(f"✅ Priority fee set to `{val}`", parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(f"Priority fee set to `{val}`", parse_mode=ParseMode.MARKDOWN)
         else:
             await update.message.reply_text(
                 "Unknown key. Use `buy_amount`, `slippage`, or `fee`.",
                 parse_mode=ParseMode.MARKDOWN,
             )
     except (ValueError, TypeError):
-        await update.message.reply_text("❌ Invalid value.", parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text("Invalid value.", parse_mode=ParseMode.MARKDOWN)

@@ -46,7 +46,7 @@ async def _execute_buy(update: Update, user_id: int, contract_address: str) -> N
     w = await get_wallet()
     if not w:
         await update.message.reply_text(
-            "❌ The shared Solana wallet is not configured yet.",
+            "The shared Solana wallet is not configured yet.",
             parse_mode=ParseMode.MARKDOWN,
         )
         return
@@ -54,7 +54,7 @@ async def _execute_buy(update: Update, user_id: int, contract_address: str) -> N
     market = await fetch_token_market(contract_address)
     if not market:
         await update.message.reply_text(
-            "❌ Could not get a live market price for this token. "
+            "Could not get a live market price for this token. "
             "No funds were changed; please try again.",
             parse_mode=ParseMode.MARKDOWN,
         )
@@ -73,7 +73,7 @@ async def _execute_buy(update: Update, user_id: int, contract_address: str) -> N
     except ValueError:
         balance = await get_user_balance(user_id)
         await update.message.reply_text(
-            f"❌ *Insufficient balance*\n\n"
+            f"*Insufficient balance*\n\n"
             f"Available  `{f_sol(balance)} SOL`\n"
             f"Required   `{f_sol(cfg['buy_amount'])} SOL`",
             parse_mode=ParseMode.MARKDOWN,
@@ -82,25 +82,25 @@ async def _execute_buy(update: Update, user_id: int, contract_address: str) -> N
     except Exception as e:
         logger.error("User trade error for %s: %s", user_id, e)
         await update.message.reply_text(
-            "❌ Could not record this trade. Your balance was not changed.",
+            "Could not record this trade. Your balance was not changed.",
             parse_mode=ParseMode.MARKDOWN,
         )
         return
 
     text = (
-        f"🎯 *Snipe Executed!*\n\n"
+        f"*Snipe Executed*\n\n"
         f"CA      `{trunc(contract_address, 8)}`\n"
         f"Amount  `{f_sol(cfg['buy_amount'])} SOL`\n"
         f"Slip    `{cfg['slippage']}%`\n"
         f"TX      `{tx[:16]}...`\n\n"
-        "✅ _Transaction submitted to Solana_"
+        "_Transaction submitted to Solana_"
     )
     await update.message.reply_text(
         text,
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=kb(
-            [InlineKeyboardButton("📊 My Snipers", callback_data="sniper:list"),
-             InlineKeyboardButton("📊 Portfolio",  callback_data="portfolio")],
+            [InlineKeyboardButton("My Snipers", callback_data="sniper:list"),
+             InlineKeyboardButton("Portfolio",  callback_data="portfolio")],
             [InlineKeyboardButton("◀ Sniper Panel", callback_data="sniper:panel")],
         ),
     )
@@ -127,7 +127,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         tx_hash = _normalize_tx_hash(raw)
         if not tx_hash:
             await message.reply_text(
-                "❌ Invalid transaction hash. Send the Solana signature or a Solscan "
+                "Invalid transaction hash. Send the Solana signature or a Solscan "
                 "transaction link.",
                 parse_mode=ParseMode.MARKDOWN,
             )
@@ -137,12 +137,12 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         amount = await fetch_deposit(tx_hash, BOT_WALLET_ADDRESS)
         if amount is None:
             await message.reply_text(
-                "❌ Deposit not verified.\n\n"
+                "Deposit not verified.\n\n"
                 "Make sure the transaction is confirmed and sends SOL to the "
                 "shared deposit address. You can send the hash again after it "
                 "confirms.",
                 parse_mode=ParseMode.MARKDOWN,
-                reply_markup=kb([btn("📥 Deposit Instructions", "deposit:show")]),
+                reply_markup=kb([btn("Deposit Instructions", "deposit:show")]),
             )
             return
         try:
@@ -150,7 +150,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         except DepositAlreadyCreditedError:
             pending_flows.pop(user_id, None)
             await message.reply_text(
-                "❌ This transaction hash has already been used to credit an account.",
+                "This transaction hash has already been used to credit an account.",
                 parse_mode=ParseMode.MARKDOWN,
             )
             return
@@ -159,20 +159,20 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                 "Could not credit deposit %s for user %s: %s", raw, user_id, exc
             )
             await message.reply_text(
-                "❌ This deposit was already credited or could not be recorded.",
+                "This deposit was already credited or could not be recorded.",
                 parse_mode=ParseMode.MARKDOWN,
             )
             return
         pending_flows.pop(user_id, None)
         await message.reply_text(
-            f"✅ *Deposit Credited*\n\n"
+            f"*Deposit Credited*\n\n"
             f"Amount   `{f_sol(amount)} SOL`\n"
             f"Balance  `{f_sol(balance)} SOL`\n"
             f"TX       `{trunc(tx_hash, 8)}`",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=kb(
-                [btn("💰 Open Wallet", "wallet:panel")],
-                [btn("📋 TX History", "wallet:history")],
+                [btn("Open Wallet", "wallet:panel")],
+                [btn("TX History", "wallet:history")],
             ),
         )
         return
@@ -181,19 +181,19 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     if flow and flow["type"] == "withdraw_address":
         if not _is_valid_ca(raw):
             await message.reply_text(
-                "❌ Invalid Solana address. Please try again.",
+                "Invalid Solana address. Please try again.",
                 parse_mode=ParseMode.MARKDOWN,
             )
             return
         balance = await get_display_balance(user)
         pending_flows[user_id] = {"type": "withdraw_amount", "to_address": raw}
         await message.reply_text(
-            f"📤 *Withdraw*\n\n"
+            f"*Withdraw*\n\n"
             f"To         `{trunc(raw, 10)}`\n"
             f"Available  `{f_sol(balance)} SOL`\n\n"
             "Step 2 of 2 — enter the amount in SOL:",
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=kb_back("withdraw:cancel", "❌ Cancel"),
+            reply_markup=kb_back("withdraw:cancel", "Cancel"),
         )
         return
 
@@ -205,14 +205,14 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                 raise ValueError
         except (ValueError, TypeError):
             await message.reply_text(
-                "❌ Invalid amount. Enter a positive number.",
+                "Invalid amount. Enter a positive number.",
                 parse_mode=ParseMode.MARKDOWN,
             )
             return
         balance = await get_display_balance(user)
         if amount > balance:
             await message.reply_text(
-                f"❌ Insufficient balance.\n\n"
+                f"Insufficient balance.\n\n"
                 f"Have  `{f_sol(balance)} SOL`  ·  Requested  `{f_sol(amount)} SOL`",
                 parse_mode=ParseMode.MARKDOWN,
             )
@@ -224,8 +224,8 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("✅ Confirm", callback_data=f"withdraw:confirm:{to_address}:{amount}"),
-                    InlineKeyboardButton("❌ Cancel",  callback_data="withdraw:cancel"),
+                    InlineKeyboardButton("Confirm", callback_data=f"withdraw:confirm:{to_address}:{amount}"),
+                    InlineKeyboardButton("Cancel",  callback_data="withdraw:cancel"),
                 ]
             ]),
         )
@@ -235,13 +235,13 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     if flow and flow["type"] == "search_token":
         pending_flows.pop(user_id, None)
         if not raw:
-            await message.reply_text("❌ Please enter a token address or symbol.", parse_mode=ParseMode.MARKDOWN)
+            await message.reply_text("Please enter a token address or symbol.", parse_mode=ParseMode.MARKDOWN)
             return
         await message.reply_text(
             screen_token_search(raw),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=kb(
-                [btn("🔍 Search Again", "search:token")],
+                [btn("Search Again", "search:token")],
                 [btn("◀ Main Menu", "menu:home")],
             ),
         )
@@ -251,7 +251,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     if flow and flow["type"] == "snipe_ca":
         pending_flows.pop(user_id, None)
         if not _is_valid_ca(raw):
-            await message.reply_text("❌ Invalid contract address.", parse_mode=ParseMode.MARKDOWN)
+            await message.reply_text("Invalid contract address.", parse_mode=ParseMode.MARKDOWN)
             return
         await _execute_buy(update, user_id, raw)
         return
@@ -268,7 +268,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             from ..keyboards import kb_sniper_edit
             from ..screens import screen_sniper_edit
             await message.reply_text(
-                f"✅ Buy amount set to `{v:.4f} SOL`",
+                f"Buy amount set to `{v:.4f} SOL`",
                 parse_mode=ParseMode.MARKDOWN,
             )
             await message.reply_text(
@@ -277,7 +277,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                 reply_markup=kb_sniper_edit(cfg),
             )
         except (ValueError, TypeError):
-            await message.reply_text("❌ Invalid amount. Enter a positive number (e.g. `0.5`).", parse_mode=ParseMode.MARKDOWN)
+            await message.reply_text("Invalid amount. Enter a positive number (e.g. `0.5`).", parse_mode=ParseMode.MARKDOWN)
         return
 
     if flow and flow["type"] == "snipe_set_slippage":
@@ -287,9 +287,9 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             if v <= 0 or v > 100:
                 raise ValueError
             get_sniper_config(user_id)["slippage"] = v
-            await message.reply_text(f"✅ Slippage set to `{v:.1f}%`", parse_mode=ParseMode.MARKDOWN)
+            await message.reply_text(f"Slippage set to `{v:.1f}%`", parse_mode=ParseMode.MARKDOWN)
         except (ValueError, TypeError):
-            await message.reply_text("❌ Invalid slippage. Enter a value between 1–100 (e.g. `10`).", parse_mode=ParseMode.MARKDOWN)
+            await message.reply_text("Invalid slippage. Enter a value between 1–100 (e.g. `10`).", parse_mode=ParseMode.MARKDOWN)
         return
 
     if flow and flow["type"] == "snipe_set_tp":
@@ -299,9 +299,9 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             if v <= 0:
                 raise ValueError
             get_sniper_config(user_id)["take_profit_pct"] = v
-            await message.reply_text(f"✅ Take profit set to `+{v:.1f}%`", parse_mode=ParseMode.MARKDOWN)
+            await message.reply_text(f"Take profit set to `+{v:.1f}%`", parse_mode=ParseMode.MARKDOWN)
         except (ValueError, TypeError):
-            await message.reply_text("❌ Invalid value.", parse_mode=ParseMode.MARKDOWN)
+            await message.reply_text("Invalid value.", parse_mode=ParseMode.MARKDOWN)
         return
 
     if flow and flow["type"] == "snipe_set_sl":
@@ -311,9 +311,9 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             if v <= 0:
                 raise ValueError
             get_sniper_config(user_id)["stop_loss_pct"] = v
-            await message.reply_text(f"✅ Stop loss set to `-{v:.1f}%`", parse_mode=ParseMode.MARKDOWN)
+            await message.reply_text(f"Stop loss set to `-{v:.1f}%`", parse_mode=ParseMode.MARKDOWN)
         except (ValueError, TypeError):
-            await message.reply_text("❌ Invalid value.", parse_mode=ParseMode.MARKDOWN)
+            await message.reply_text("Invalid value.", parse_mode=ParseMode.MARKDOWN)
         return
 
     # ── Set tracked wallet for alerts ─────────────────────────────────────
@@ -321,7 +321,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         pending_flows.pop(user_id, None)
         if not _is_valid_ca(raw):
             await message.reply_text(
-                "❌ That doesn't look like a valid Solana address. Please try again.",
+                "That doesn't look like a valid Solana address. Please try again.",
                 parse_mode=ParseMode.MARKDOWN,
                 reply_markup=kb([btn("◀ Alerts", "alerts:menu")]),
             )
@@ -329,12 +329,12 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         tracked_wallet_address[user_id] = raw
         alert_subscribers.discard(user_id)
         await message.reply_text(
-            f"✅ *Wallet set for tracking*\n\n"
+            f"*Wallet set for tracking*\n\n"
             f"`{raw}`\n\n"
             "Alerts have been reset. Go back to the Alerts menu to enable them.",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=kb(
-                [btn("🚨 Go to Alerts", "alerts:menu")],
+                [btn("Go to Alerts", "alerts:menu")],
                 [btn("◀ Main Menu", "menu:home")],
             ),
         )
@@ -346,12 +346,12 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             await _execute_buy(update, user_id, raw)
         else:
             await message.reply_text(
-                f"📋 *Contract Address Detected*\n\n`{raw}`\n\n"
+                f"*Contract Address Detected*\n\n`{raw}`\n\n"
                 "Enable sniping in the Sniper Panel to auto-buy:",
                 parse_mode=ParseMode.MARKDOWN,
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📈 Sniper Panel", callback_data="sniper:panel")],
-                    [InlineKeyboardButton(f"⚡ Buy now ({f_sol(get_sniper_config(user_id)['buy_amount'])} SOL)",
+                    [InlineKeyboardButton("Sniper Panel", callback_data="sniper:panel")],
+                    [InlineKeyboardButton(f"Buy now ({f_sol(get_sniper_config(user_id)['buy_amount'])} SOL)",
                                          callback_data=f"sniper:buy:{raw}")],
                 ]),
             )
