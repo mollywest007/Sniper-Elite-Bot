@@ -237,8 +237,31 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         if not raw:
             await message.reply_text("Please enter a token address or symbol.", parse_mode=ParseMode.MARKDOWN)
             return
+        if not _is_valid_ca(raw):
+            await message.reply_text(
+                "Please send a valid Solana contract address (CA).",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb(
+                    [btn("Search Again", "search:token")],
+                    [btn("◀ Main Menu", "menu:home")],
+                ),
+            )
+            return
+        from ..market import fetch_token_market
+        market = await fetch_token_market(raw)
+        if not market:
+            await message.reply_text(
+                "No live Solana market pair was found for this CA. "
+                "Check the address and try again.",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb(
+                    [btn("Search Again", "search:token")],
+                    [btn("◀ Main Menu", "menu:home")],
+                ),
+            )
+            return
         await message.reply_text(
-            screen_token_search(raw),
+            screen_token_search(market),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=kb(
                 [btn("Search Again", "search:token")],

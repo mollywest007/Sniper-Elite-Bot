@@ -1,4 +1,3 @@
-import random
 from .config import BOT_WALLET_ADDRESS
 
 
@@ -32,6 +31,16 @@ def f_pct(v) -> str:
         return f"{sign}{n:.2f}%"
     except (TypeError, ValueError):
         return "+0.00%"
+
+
+def f_price(v) -> str:
+    try:
+        n = float(v)
+        if n == 0:
+            return "N/A"
+        return f"{n:.8g}"
+    except (TypeError, ValueError):
+        return "N/A"
 
 
 def screen_welcome(balance: float) -> str:
@@ -138,23 +147,39 @@ def screen_recent_wins(gainers: list[dict] | None) -> str:
     )
 
 
-def screen_token_search(query: str) -> str:
-    label = query if len(query) <= 12 else trunc(query, 6)
-    symbol = "".join(c for c in query.upper() if c.isalnum())[:10] or "TOKEN"
-    price = random.uniform(0.0000001, 0.05)
-    mc = random.uniform(20_000, 8_000_000)
-    liq = random.uniform(5_000, mc * 0.6)
-    change = random.uniform(-40, 260)
-    holders = random.randint(80, 12_000)
+def screen_token_search(market: dict) -> str:
+    symbol = market.get("symbol") or "TOKEN"
+    name = market.get("name") or "Unknown"
+    address = market.get("address") or "N/A"
+    market_cap = float(market.get("market_cap") or 0)
+    fdv = float(market.get("fdv") or 0)
+    liquidity = float(market.get("liquidity") or 0)
+    volume_24h = float(market.get("volume_24h") or 0)
+    market_cap_text = f_usd(market_cap) if market_cap > 0 else "N/A"
+    fdv_text = f_usd(fdv) if fdv > 0 else "N/A"
+    liquidity_text = f_usd(liquidity) if liquidity > 0 else "N/A"
+    volume_text = f_usd(volume_24h) if volume_24h > 0 else "N/A"
+    pair_address = market.get("pair_address") or "N/A"
+    pair_url = market.get("pair_url") or ""
+    pair_line = f"Pair          `{pair_address}`\n"
+    if pair_url:
+        pair_line += f"[View live pair]({pair_url})\n"
     return (
-        f"*Search Result — {symbol}*\n\n"
-        f"Queried      `{label}`\n"
-        f"Price        `${price:.8f}`\n"
-        f"Market Cap   {f_usd(mc)}\n"
-        f"Liquidity    {f_usd(liq)}\n"
-        f"24h Change   {f_pct(change)}\n"
-        f"Holders      `{holders:,}`\n\n"
-        "_Data refreshes each search · Raydium · Jupiter · Pump.fun_"
+        f"*Token Information — {symbol}*\n"
+        f"{name}\n\n"
+        f"Contract Address\n`{address}`\n\n"
+        f"Price         `{f_price(market.get('price_usd'))} USD`\n"
+        f"Price in SOL  `{f_price(market.get('price_sol'))} SOL`\n"
+        f"Market Cap    `{market_cap_text}`\n"
+        f"FDV           `{fdv_text}`\n"
+        f"Liquidity     `{liquidity_text}`\n"
+        f"24h Volume    `{volume_text}`\n"
+        f"24h Change    `{f_pct(market.get('price_change_24h'))}`\n"
+        f"24h Buys      `{market.get('buys_24h', 0):,}`\n"
+        f"24h Sells     `{market.get('sells_24h', 0):,}`\n"
+        f"DEX           `{market.get('dex') or 'Unknown'}`\n"
+        f"{pair_line}\n"
+        "_Live data from DexScreener · values reflect the selected Solana pair_"
     )
 
 

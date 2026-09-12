@@ -198,13 +198,13 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         pending_flows[user_id] = {"type": "search_token"}
         return await _edit(
             query,
-            "*Search Token*\n\nPaste a contract address or type a token symbol:",
+            "*Search Token*\n\nPaste a Solana contract address (CA):",
             kb_back("menu:home", "Cancel"),
         )
 
     # ── Recent Wins ───────────────────────────────────────────────────────
     if data == "wins:show":
-        gainers = await fetch_recent_solana_gainers()
+        gainers = await fetch_recent_solana_gainers(force_refresh=True)
         return await _edit(
             query, screen_recent_wins(gainers),
             kb(

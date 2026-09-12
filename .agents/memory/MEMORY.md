@@ -3,3 +3,5 @@
 - [Post-import/re-clone setup steps](post-import-setup.md) — pnpm install, build api-server, db push, and TELEGRAM_BOT_TOKEN secret are all needed fresh after every import; none are in git.
 - [Telegram bot branding/legitimacy pass](telegram-bot-branding.md) — banner photo + 2-column menu grid redesign to look like established sniper bots; keep new menu items paired, not single-column.
 - [Shared wallet attribution](shared-wallet-ledger.md) — a shared Solana receiving address needs an exact Telegram memo before a deposit can be credited to one user's internal ledger.
+- [Token search data integrity](token-search-data-integrity.md) — CA searches must use a live market lookup and never display generated token metrics.
+- [Recent wins refresh](recent-wins-refresh.md) — refresh must bypass the short cache and rotate across combined live Solana candidate feeds.

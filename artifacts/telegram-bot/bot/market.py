@@ -4,11 +4,14 @@ import httpx
 from .logger import logger
 
 _BOOSTS_URL = "https://api.dexscreener.com/token-boosts/top/v1"
+_LATEST_BOOSTS_URL = "https://api.dexscreener.com/token-boosts/latest/v1"
+_LATEST_PROFILES_URL = "https://api.dexscreener.com/token-profiles/latest/v1"
 _TOKEN_URL = "https://api.dexscreener.com/latest/dex/tokens/{}"
 _SOL_MINT = "So11111111111111111111111111111111111111112"
 _client: httpx.AsyncClient | None = None
 _cache: tuple[float, list[dict]] = (0.0, [])
 _sol_price_cache: tuple[float, float] = (0.0, 0.0)
+_gainers_rotation = 0
 _cache_lock = asyncio.Lock()
 
 
@@ -31,6 +34,7 @@ async def close_http_client() -> None:
 
 async def _fetch_best_pair(client: httpx.AsyncClient, address: str) -> dict | None:
     """Fetch the most liquid Solana trading pair for a token address."""
+    address = address.strip()
     try:
         resp = await client.get(_TOKEN_URL.format(address))
         if resp.status_code != 200:
@@ -40,7 +44,12 @@ async def _fetch_best_pair(client: httpx.AsyncClient, address: str) -> dict | No
         sol_pairs = [p for p in pairs if p.get("chainId") == "solana"]
         if not sol_pairs:
             return None
-        return max(sol_pairs, key=lambda p: (p.get("liquidity") or {}).get("usd") or 0)
+        matching_base_pairs = [
+            p for p in sol_pairs
+            if str((p.get("baseToken") or {}).get("address") or "") == address
+        ]
+        candidates = matching_base_pairs or sol_pairs
+        return max(candidates, key=lambda p: (p.get("liquidity") or {}).get("usd") or 0)
     except Exception as exc:
         logger.debug("DexScreener token fetch failed for %s: %s", address, exc)
         return None
@@ -87,6 +96,9 @@ async def fetch_token_market(address: str) -> dict | None:
         return None
 
     base = pair.get("baseToken") or {}
+    price_change = (pair.get("priceChange") or {}).get("h24")
+    volume_24h = (pair.get("volume") or {}).get("h24")
+    txns_24h = (pair.get("txns") or {}).get("h24") or {}
     return {
         "symbol": base.get("symbol") or "TOKEN",
         "name": base.get("name") or "Unknown",
@@ -94,11 +106,21 @@ async def fetch_token_market(address: str) -> dict | None:
         "price_sol": price_sol,
         "price_usd": price_usd,
         "market_cap": float(pair.get("marketCap") or pair.get("fdv") or 0),
+        "fdv": float(pair.get("fdv") or 0),
         "liquidity": float((pair.get("liquidity") or {}).get("usd") or 0),
+        "price_change_24h": float(price_change or 0),
+        "volume_24h": float(volume_24h or 0),
+        "buys_24h": int(txns_24h.get("buys") or 0),
+        "sells_24h": int(txns_24h.get("sells") or 0),
+        "dex": pair.get("dexId") or "Unknown",
+        "pair_address": pair.get("pairAddress") or "",
+        "pair_url": pair.get("url") or "",
     }
 
 
-async def fetch_recent_solana_gainers(limit: int = 5) -> list[dict]:
+async def fetch_recent_solana_gainers(
+    limit: int = 5, force_refresh: bool = False
+) -> list[dict]:
     """Fetch real, currently-trending Solana tokens with positive 24h price moves
     from DexScreener's public API. Returns a list of dicts with symbol, address,
     price_change_24h, market_cap, liquidity, price_usd — sorted by biggest gain.
@@ -106,32 +128,53 @@ async def fetch_recent_solana_gainers(limit: int = 5) -> list[dict]:
     Returns an empty list if live data can't be fetched; callers must show that
     explicitly rather than falling back to fake numbers.
     """
-    global _cache
+    global _cache, _gainers_rotation
     now = time.monotonic()
-    if now - _cache[0] < 30:
+    if not force_refresh and now - _cache[0] < 30:
         return _cache[1][:limit]
 
     async with _cache_lock:
         now = time.monotonic()
-        if now - _cache[0] < 30:
+        if not force_refresh and now - _cache[0] < 30:
             return _cache[1][:limit]
 
         try:
             client = _http_client()
-            resp = await client.get(_BOOSTS_URL)
-            if resp.status_code != 200:
-                logger.warning("DexScreener boosts returned %s", resp.status_code)
-                return []
-            boosts = resp.json()
-            if not isinstance(boosts, list):
-                return []
-            addrs = [
-                b["tokenAddress"] for b in boosts
-                if b.get("chainId") == "solana" and b.get("tokenAddress")
-            ]
-            addrs = list(dict.fromkeys(addrs))[:10]
+            responses = await asyncio.gather(
+                client.get(_BOOSTS_URL),
+                client.get(_LATEST_BOOSTS_URL),
+                client.get(_LATEST_PROFILES_URL),
+                return_exceptions=True,
+            )
+            addrs = []
+            for response in responses:
+                if isinstance(response, Exception) or response.status_code != 200:
+                    continue
+                try:
+                    entries = response.json()
+                except ValueError:
+                    continue
+                if not isinstance(entries, list):
+                    continue
+                for entry in entries:
+                    address = entry.get("tokenAddress")
+                    if (
+                        entry.get("chainId") == "solana"
+                        and address
+                        and address not in addrs
+                    ):
+                        addrs.append(address)
             if not addrs:
+                logger.warning("DexScreener returned no Solana token candidates")
                 return []
+            if force_refresh and len(addrs) > limit:
+                window_size = min(max(limit * 4, 20), len(addrs))
+                start = (_gainers_rotation * max(limit, 1)) % len(addrs)
+                _gainers_rotation += 1
+                rotated = addrs[start:] + addrs[:start]
+                addrs = rotated[:window_size]
+            else:
+                addrs = addrs[:max(20, limit * 4)]
             pairs = await asyncio.gather(*[_fetch_best_pair(client, a) for a in addrs])
         except Exception as exc:
             logger.error("DexScreener fetch failed: %s", exc)
