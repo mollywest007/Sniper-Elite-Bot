@@ -5,3 +5,4 @@
 - [Shared wallet attribution](shared-wallet-ledger.md) — a shared Solana receiving address needs an exact Telegram memo before a deposit can be credited to one user's internal ledger.
 - [Token search data integrity](token-search-data-integrity.md) — CA searches must use a live market lookup and never display generated token metrics.
 - [Recent wins refresh](recent-wins-refresh.md) — refresh must bypass the short cache and rotate across combined live Solana candidate feeds.
+- [Telegram screen navigation](telegram-screen-navigation.md) — callback screens should edit text messages in place; photo screens use replacement plus deletion.

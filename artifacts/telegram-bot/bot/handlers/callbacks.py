@@ -67,10 +67,25 @@ async def _send_replacement(message, text: str, markup: InlineKeyboardMarkup) ->
 
 
 async def _edit(query, text: str, markup: InlineKeyboardMarkup) -> None:
-    """Replace the current screen without creating Telegram's 'edited' label."""
+    """Update the current screen in place so navigation does not spam the chat."""
     message = query.message
     if not message:
         return
+
+    if not message.photo:
+        try:
+            await query.edit_message_text(
+                text,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=markup,
+            )
+            return
+        except BadRequest as e:
+            if "message is not modified" in str(e).lower():
+                return
+            logger.debug("Could not edit Telegram screen in place: %s", e)
+        except TelegramError as e:
+            logger.debug("Could not edit Telegram screen in place: %s", e)
 
     try:
         await _send_replacement(message, text, markup)
