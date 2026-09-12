@@ -98,17 +98,17 @@ def screen_deposit(user_id: int | None = None) -> str:
 
 
 def screen_sniper_panel(cfg: dict) -> str:
-    status = "Active — paste any CA to snipe" if cfg["sniping"] else "Idle"
+    status = "✅ Active — paste any CA to snipe" if cfg["sniping"] else "Idle"
     return (
         "*Sniper Panel*\n\n"
         f"Status       {status}\n\n"
-        f"Auto Buy     {'ON' if cfg['auto_buy'] else 'OFF'}\n"
+        f"Auto Buy     {'✅ ON' if cfg['auto_buy'] else 'OFF'}\n"
         f"Amount       `{f_sol(cfg['buy_amount'])} SOL`\n"
         f"Slippage     `{cfg['slippage']}%`\n"
         f"Priority     `{cfg['priority_fee']}`\n"
         f"Take Profit  `+{cfg['take_profit_pct']}%`\n"
         f"Stop Loss    `-{cfg['stop_loss_pct']}%`\n"
-        f"Auto Sell    {'ON' if cfg['auto_sell'] else 'OFF'}\n\n"
+        f"Auto Sell    {'✅ ON' if cfg['auto_sell'] else 'OFF'}\n\n"
         "_Integrations: Raydium · Jupiter · Pump.fun_"
     )
 

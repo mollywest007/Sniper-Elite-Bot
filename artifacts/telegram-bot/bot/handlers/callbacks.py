@@ -342,7 +342,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return await _edit(
             query,
             f"*Wallet Alerts*\n\n"
-            f"Status  {'*Active*' if is_on else 'Inactive'}\n\n"
+            f"Status  {'✅ *Active*' if is_on else 'Inactive'}\n\n"
             f"Tracking  `{trunc(addr, 12)}`",
             kb_alerts(user_id),
         )
@@ -377,7 +377,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return await _edit(
             query,
             f"*Wallet Alerts*\n\n"
-            f"Status  {'*Active*' if is_on else 'Inactive'}\n\n"
+            f"Status  {'✅ *Active*' if is_on else 'Inactive'}\n\n"
             f"Tracking  `{trunc(addr, 12)}`",
             kb_alerts(user_id),
         )
@@ -392,7 +392,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return await _edit(
             query,
             f"*{label} Alerts*\n\n"
-            f"Currently *active* for all {label.lower()} events.",
+            f"Currently ✅ *active* for all {label.lower()} events.",
             kb([btn("All Alerts", "alerts:menu"), btn("◀ Home", "menu:home")]),
         )
 
@@ -550,24 +550,24 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             f"Buy Amount  `{f_sol(s['default_buy_amount_sol'])} SOL`\n"
             f"Slippage    `{s['default_slippage_percent']}%`\n"
             f"Fee         `{s['default_priority_fee']}`\n"
-            f"Auto Approve  {'ON' if s['auto_approve'] else 'OFF'}\n\n"
+            f"Auto Approve  {'✅ ON' if s['auto_approve'] else 'OFF'}\n\n"
             f"Notifications\n"
-            f"Buy {'ON' if s['notify_buy'] else 'OFF'}  "
-            f"Sell {'ON' if s['notify_sell'] else 'OFF'}  "
-            f"Sniper {'ON' if s['notify_sniper'] else 'OFF'}  "
-            f"Wallet {'ON' if s['notify_wallet'] else 'OFF'}\n\n"
+            f"Buy {'✅ ON' if s['notify_buy'] else 'OFF'}  "
+            f"Sell {'✅ ON' if s['notify_sell'] else 'OFF'}  "
+            f"Sniper {'✅ ON' if s['notify_sniper'] else 'OFF'}  "
+            f"Wallet {'✅ ON' if s['notify_wallet'] else 'OFF'}\n\n"
             "_Use /set to change values:_\n"
             "`/set buy_amount 0.5`\n`/set slippage 10`\n`/set fee high`",
             kb(
-                [btn("Buy: ON" if s["notify_buy"] else "Buy: OFF",
+                [btn("Buy: ✅ ON" if s["notify_buy"] else "Buy: OFF",
                      f"settings:toggle:notifyBuy:{'false' if s['notify_buy'] else 'true'}"),
-                  btn("Sell: ON" if s["notify_sell"] else "Sell: OFF",
+                  btn("Sell: ✅ ON" if s["notify_sell"] else "Sell: OFF",
                      f"settings:toggle:notifySell:{'false' if s['notify_sell'] else 'true'}")],
-                [btn("Sniper: ON" if s["notify_sniper"] else "Sniper: OFF",
+                [btn("Sniper: ✅ ON" if s["notify_sniper"] else "Sniper: OFF",
                      f"settings:toggle:notifySniper:{'false' if s['notify_sniper'] else 'true'}"),
-                  btn("Wallet: ON" if s["notify_wallet"] else "Wallet: OFF",
+                  btn("Wallet: ✅ ON" if s["notify_wallet"] else "Wallet: OFF",
                      f"settings:toggle:notifyWallet:{'false' if s['notify_wallet'] else 'true'}")],
-                [btn("Auto-Approve: ON" if s["auto_approve"] else "Auto-Approve: OFF",
+                [btn("Auto-Approve: ✅ ON" if s["auto_approve"] else "Auto-Approve: OFF",
                      f"settings:toggle:autoApprove:{'false' if s['auto_approve'] else 'true'}")],
                 [btn("◀ Main Menu", "menu:home")],
             ),
@@ -594,20 +594,20 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             f"Slippage    `{s2['default_slippage_percent']}%`\n"
             f"Fee         `{s2['default_priority_fee']}`\n\n"
             f"Notifications\n"
-            f"Buy {'ON' if s2['notify_buy'] else 'OFF'}  "
-            f"Sell {'ON' if s2['notify_sell'] else 'OFF'}  "
-            f"Sniper {'ON' if s2['notify_sniper'] else 'OFF'}  "
-            f"Wallet {'ON' if s2['notify_wallet'] else 'OFF'}",
+            f"Buy {'✅ ON' if s2['notify_buy'] else 'OFF'}  "
+            f"Sell {'✅ ON' if s2['notify_sell'] else 'OFF'}  "
+            f"Sniper {'✅ ON' if s2['notify_sniper'] else 'OFF'}  "
+            f"Wallet {'✅ ON' if s2['notify_wallet'] else 'OFF'}",
             kb(
-                [btn("Buy: ON" if s2["notify_buy"] else "Buy: OFF",
+                [btn("Buy: ✅ ON" if s2["notify_buy"] else "Buy: OFF",
                      f"settings:toggle:notifyBuy:{'false' if s2['notify_buy'] else 'true'}"),
-                  btn("Sell: ON" if s2["notify_sell"] else "Sell: OFF",
+                  btn("Sell: ✅ ON" if s2["notify_sell"] else "Sell: OFF",
                      f"settings:toggle:notifySell:{'false' if s2['notify_sell'] else 'true'}")],
-                [btn("Sniper: ON" if s2["notify_sniper"] else "Sniper: OFF",
+                [btn("Sniper: ✅ ON" if s2["notify_sniper"] else "Sniper: OFF",
                      f"settings:toggle:notifySniper:{'false' if s2['notify_sniper'] else 'true'}"),
-                  btn("Wallet: ON" if s2["notify_wallet"] else "Wallet: OFF",
+                  btn("Wallet: ✅ ON" if s2["notify_wallet"] else "Wallet: OFF",
                      f"settings:toggle:notifyWallet:{'false' if s2['notify_wallet'] else 'true'}")],
-                [btn("Auto: ON" if s2["auto_approve"] else "Auto: OFF",
+                [btn("Auto: ✅ ON" if s2["auto_approve"] else "Auto: OFF",
                      f"settings:toggle:autoApprove:{'false' if s2['auto_approve'] else 'true'}")],
                 [btn("◀ Main Menu", "menu:home")],
             ),
@@ -619,9 +619,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return await _edit(
             query,
             f"*Security*\n\n"
-            f"PIN Lock         {'Enabled' if s['pin_lock_enabled'] else 'Disabled'}\n"
+            f"PIN Lock         {'✅ Enabled' if s['pin_lock_enabled'] else 'Disabled'}\n"
             f"Session Timeout  `{s['session_timeout_minutes']} min`\n"
-            f"Anti-Spam        Active\n\n"
+            f"Anti-Spam        ✅ Active\n\n"
             "Wallet security:\n"
             "· Private key stored in environment only\n"
             "· Never transmitted over the network\n"
@@ -641,7 +641,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         await update_settings(s["id"], pin_lock_enabled=val)
         return await _edit(
             query,
-            f"PIN Lock *{'enabled' if val else 'disabled'}*.",
+            f"{'✅ ' if val else ''}PIN Lock *{'enabled' if val else 'disabled'}*.",
             kb_back("security:menu", "◀ Security"),
         )
 

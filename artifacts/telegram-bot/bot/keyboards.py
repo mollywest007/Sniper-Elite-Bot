@@ -30,7 +30,7 @@ def kb_back(target: str, label: str = "◀ Back") -> InlineKeyboardMarkup:
 
 def kb_sniper(cfg: dict) -> InlineKeyboardMarkup:
     return kb(
-        [btn(f"Auto Buy: {'ON' if cfg['auto_buy'] else 'OFF'}", "sniper:toggle:autoBuy")],
+        [btn(f"Auto Buy: {'✅ ON' if cfg['auto_buy'] else 'OFF'}", "sniper:toggle:autoBuy")],
         [
             btn("Stop Sniping" if cfg["sniping"] else "Start Sniping",
                 "sniper:stop" if cfg["sniping"] else "sniper:start"),
@@ -66,7 +66,7 @@ def kb_sniper_edit(cfg: dict) -> InlineKeyboardMarkup:
         [btn("Medium", "sniper:fee:medium"), btn("High", "sniper:fee:high")],
         [btn(f"TP: +{f['take_profit_pct']}%", "sniper:set:tp"),
          btn(f"SL: -{f['stop_loss_pct']}%", "sniper:set:sl")],
-        [btn(f"Auto Sell: {'ON' if f['auto_sell'] else 'OFF'}", "sniper:toggle:autoSell")],
+        [btn(f"Auto Sell: {'✅ ON' if f['auto_sell'] else 'OFF'}", "sniper:toggle:autoSell")],
         [btn("◀ Sniper Panel", "sniper:panel")],
     )
 
