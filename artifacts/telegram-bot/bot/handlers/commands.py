@@ -110,7 +110,7 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         "*Supported DEXs*\n"
         "Raydium · Jupiter · Pump.fun\n\n"
         "*Support*\n"
-        "Contact  t.me/devBernard"
+        "Contact  t.me/developer9997"
     )
     await update.message.reply_text(
         text,

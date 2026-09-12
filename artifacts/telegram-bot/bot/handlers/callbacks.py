@@ -771,7 +771,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             "*Supported DEXs*\n"
             "Raydium · Jupiter · Pump.fun\n\n"
             "*Support*\n"
-            "Contact  t.me/devBernard",
+             "Contact  t.me/developer9997",
             kb_back("menu:home", "◀ Main Menu"),
         )
 
