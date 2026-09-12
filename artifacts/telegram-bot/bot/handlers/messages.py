@@ -50,6 +50,15 @@ async def _execute_buy(update: Update, user_id: int, contract_address: str) -> N
             parse_mode=ParseMode.MARKDOWN,
         )
         return
+    from ..market import fetch_token_market
+    market = await fetch_token_market(contract_address)
+    if not market:
+        await update.message.reply_text(
+            "❌ Could not get a live market price for this token. "
+            "No funds were changed; please try again.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
     try:
         await execute_user_trade(
             user_id=user_id,
@@ -59,6 +68,7 @@ async def _execute_buy(update: Update, user_id: int, contract_address: str) -> N
             slippage_percent=cfg["slippage"],
             priority_fee=cfg["priority_fee"],
             tx_hash=tx,
+            market=market,
         )
     except ValueError:
         balance = await get_user_balance(user_id)

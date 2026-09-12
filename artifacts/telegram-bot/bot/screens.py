@@ -43,7 +43,7 @@ def screen_welcome(balance: float) -> str:
         "• Copy Trading System\n"
         "• Real-Time Market Data\n"
         "• Advanced Risk Management\n\n"
-        f"💰 Balance   `{f_sol(balance)} SOL`\n\n"
+        f"💰 Wallet Value   `{f_sol(balance)} SOL`\n\n"
         "💡 Get started — tap *Wallet* below"
     )
 
@@ -56,15 +56,22 @@ def screen_wallet_generated(user_id: int | None = None) -> str:
         f"`{BOT_WALLET_ADDRESS}`\n\n"
         "🔐 *Execution wallet* · shared bot address\n\n"
         "_Tap the address to copy it. Deposits are credited to your account "
-        "only when verified with your Telegram memo._"
+        "only when verified with its transaction hash._"
     )
 
 
-def screen_wallet(balance: float) -> str:
+def screen_wallet(
+    balance: float, positions_value: float = 0, unrealized_pnl: float = 0
+) -> str:
+    total_value = balance + positions_value
+    pnl_sign = "+" if unrealized_pnl >= 0 else ""
     return (
         "💰 *Wallet*\n\n"
         f"📍 *Address*\n`{BOT_WALLET_ADDRESS}`\n\n"
-        f"💵 *Balance*  ·  `{f_sol(balance)} SOL`\n\n"
+        f"💵 *Available SOL*  ·  `{f_sol(balance)} SOL`\n"
+        f"📊 *Token Holdings*  ·  `{f_sol(positions_value)} SOL`\n"
+        f"📈 *Unrealized P/L*  ·  `{pnl_sign}{f_sol(unrealized_pnl)} SOL`\n"
+        f"💰 *Total Wallet Value*  ·  `{f_sol(total_value)} SOL`\n\n"
         "🔐 *Private key*  ·  configured and stored in bot\n\n"
         "_Tap the address to copy it_"
     )

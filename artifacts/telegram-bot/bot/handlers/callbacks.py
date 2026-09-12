@@ -12,7 +12,7 @@ from ..database import (
     get_or_create_settings, update_settings,
     get_trades, get_user_transactions, get_snipers, execute_user_trade, update_sniper_status,
     get_positions, get_copy_trades, get_limit_orders, count_table,
-    get_wallet, mark_wallet_generated, debit_user_balance,
+    get_wallet, mark_wallet_generated, debit_user_balance, get_wallet_valuation,
 )
 from ..keyboards import (
     kb_main, kb_back, kb_sniper, kb_wallet, kb_deposit, kb_sniper_edit,
@@ -113,6 +113,15 @@ async def _execute_buy(query, user_id: int, contract_address: str) -> None:
             "❌ The shared Solana wallet is not configured yet.",
             kb_back("sniper:panel", "◀ Sniper Panel"),
         )
+    from ..market import fetch_token_market
+    market = await fetch_token_market(contract_address)
+    if not market:
+        return await _edit(
+            query,
+            "❌ Could not get a live market price for this token. "
+            "No funds were changed; please try again.",
+            kb_back("sniper:panel", "◀ Sniper Panel"),
+        )
     try:
         await execute_user_trade(
             user_id=user_id,
@@ -122,6 +131,7 @@ async def _execute_buy(query, user_id: int, contract_address: str) -> None:
             slippage_percent=cfg["slippage"],
             priority_fee=cfg["priority_fee"],
             tx_hash=tx,
+            market=market,
         )
     except ValueError:
         balance = await get_user_balance(user_id)
@@ -178,15 +188,14 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     # ── Main Menu ─────────────────────────────────────────────────────────
     if data == "menu:home":
-        balance = await get_display_balance(user)
+        valuation = await get_wallet_valuation(user_id)
         from ..screens import screen_welcome
-        return await _edit(query, screen_welcome(balance), kb_main(user_id))
+        return await _edit(query, screen_welcome(valuation["total_value"]), kb_main(user_id))
 
     if data == "menu:refresh":
-        from ..config import BOT_WALLET_ADDRESS as _ADDR
-        balance = await get_display_balance(user, refresh=True)
+        valuation = await get_wallet_valuation(user_id)
         from ..screens import screen_welcome
-        return await _edit(query, screen_welcome(balance), kb_main(user_id))
+        return await _edit(query, screen_welcome(valuation["total_value"]), kb_main(user_id))
 
     # ── Search Token ──────────────────────────────────────────────────────
     if data == "search:token":
@@ -220,13 +229,28 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         )
 
     if data == "wallet:panel":
-        balance = await get_display_balance(user)
-        return await _edit(query, screen_wallet(balance), kb_wallet())
+        valuation = await get_wallet_valuation(user_id)
+        return await _edit(
+            query,
+            screen_wallet(
+                valuation["cash_balance"],
+                valuation["positions_value"],
+                valuation["unrealized_pnl"],
+            ),
+            kb_wallet(),
+        )
 
     if data == "wallet:refresh":
-        from ..config import BOT_WALLET_ADDRESS
-        balance = await get_display_balance(user, refresh=True)
-        return await _edit(query, screen_wallet(balance), kb_wallet())
+        valuation = await get_wallet_valuation(user_id)
+        return await _edit(
+            query,
+            screen_wallet(
+                valuation["cash_balance"],
+                valuation["positions_value"],
+                valuation["unrealized_pnl"],
+            ),
+            kb_wallet(),
+        )
 
     if data == "wallet:history":
         trades = await get_user_transactions(user_id, 8)
@@ -488,9 +512,16 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     # ── Portfolio ─────────────────────────────────────────────────────────
     if data == "portfolio":
-        positions = await get_positions(user_id)
-        balance = await get_display_balance(user)
-        text = f"📊 *Portfolio*\n\nSOL Balance  `{f_sol(balance)} SOL`\n\n"
+        valuation = await get_wallet_valuation(user_id)
+        positions = valuation["positions"]
+        balance = valuation["cash_balance"]
+        text = (
+            f"📊 *Portfolio*\n\n"
+            f"Available SOL  `{f_sol(balance)} SOL`\n"
+            f"Holdings       `{f_sol(valuation['positions_value'])} SOL`\n"
+            f"Total Value    `{f_sol(valuation['total_value'])} SOL`\n"
+            f"Unrealized P/L `{f_sol(valuation['unrealized_pnl'])} SOL`\n\n"
+        )
         if not positions:
             text += "No open positions.\n\nUse the Sniper Panel to start trading."
         else:

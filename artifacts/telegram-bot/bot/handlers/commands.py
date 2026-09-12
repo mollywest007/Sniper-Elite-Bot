@@ -4,7 +4,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
-from ..database import get_display_balance, get_or_create_settings, update_settings, touch_bot_user
+from ..database import get_wallet_valuation, get_or_create_settings, update_settings, touch_bot_user
 from ..keyboards import kb_main, kb_back
 from ..screens import screen_welcome
 from ..state import registered_users, wallet_generated, is_rate_limited
@@ -45,8 +45,8 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     registered_users.add(user.id)
     asyncio.create_task(_touch_user_in_background(user.id))
-    balance = await get_display_balance(user)
-    text = screen_welcome(balance)
+    valuation = await get_wallet_valuation(user.id)
+    text = screen_welcome(valuation["total_value"])
     await _send_welcome_with_banner(update, text, kb_main(user.id))
     logger.info("User %s started bot", user.id)
 
@@ -58,9 +58,9 @@ async def cmd_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     registered_users.add(user.id)
     if is_rate_limited(user.id):
         return
-    balance = await get_display_balance(user)
+    valuation = await get_wallet_valuation(user.id)
     await update.message.reply_text(
-        screen_welcome(balance),
+        screen_welcome(valuation["total_value"]),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=kb_main(user.id),
     )
@@ -76,9 +76,13 @@ async def cmd_wallet(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if is_rate_limited(user.id):
         return
     wallet_generated.add(user.id)
-    balance = await get_display_balance(user)
+    valuation = await get_wallet_valuation(user.id)
     await update.message.reply_text(
-        screen_wallet(balance),
+        screen_wallet(
+            valuation["cash_balance"],
+            valuation["positions_value"],
+            valuation["unrealized_pnl"],
+        ),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=kb_wallet(),
     )

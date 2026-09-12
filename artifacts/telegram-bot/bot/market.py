@@ -5,8 +5,10 @@ from .logger import logger
 
 _BOOSTS_URL = "https://api.dexscreener.com/token-boosts/top/v1"
 _TOKEN_URL = "https://api.dexscreener.com/latest/dex/tokens/{}"
+_SOL_MINT = "So11111111111111111111111111111111111111112"
 _client: httpx.AsyncClient | None = None
 _cache: tuple[float, list[dict]] = (0.0, [])
+_sol_price_cache: tuple[float, float] = (0.0, 0.0)
 _cache_lock = asyncio.Lock()
 
 
@@ -42,6 +44,58 @@ async def _fetch_best_pair(client: httpx.AsyncClient, address: str) -> dict | No
     except Exception as exc:
         logger.debug("DexScreener token fetch failed for %s: %s", address, exc)
         return None
+
+
+async def _fetch_sol_usd_price(client: httpx.AsyncClient) -> float | None:
+    global _sol_price_cache
+    now = time.monotonic()
+    if now - _sol_price_cache[0] < 30:
+        return _sol_price_cache[1] or None
+    pair = await _fetch_best_pair(client, _SOL_MINT)
+    try:
+        price = float(pair.get("priceUsd")) if pair else 0.0
+    except (TypeError, ValueError):
+        price = 0.0
+    _sol_price_cache = (time.monotonic(), price)
+    return price or None
+
+
+async def fetch_token_market(address: str) -> dict | None:
+    """Return a live SOL-denominated quote for a Solana token."""
+    client = _http_client()
+    pair = await _fetch_best_pair(client, address)
+    if not pair:
+        return None
+
+    try:
+        price_usd = float(pair.get("priceUsd") or 0)
+    except (TypeError, ValueError):
+        price_usd = 0.0
+
+    quote_symbol = str((pair.get("quoteToken") or {}).get("symbol") or "").upper()
+    try:
+        price_sol = (
+            float(pair.get("priceNative") or 0)
+            if quote_symbol in {"SOL", "WSOL"}
+            else price_usd / (await _fetch_sol_usd_price(client) or 0)
+        )
+    except (TypeError, ValueError, ZeroDivisionError):
+        price_sol = 0.0
+
+    if price_sol <= 0:
+        logger.debug("No usable SOL price for token %s", address)
+        return None
+
+    base = pair.get("baseToken") or {}
+    return {
+        "symbol": base.get("symbol") or "TOKEN",
+        "name": base.get("name") or "Unknown",
+        "address": base.get("address") or address,
+        "price_sol": price_sol,
+        "price_usd": price_usd,
+        "market_cap": float(pair.get("marketCap") or pair.get("fdv") or 0),
+        "liquidity": float((pair.get("liquidity") or {}).get("usd") or 0),
+    }
 
 
 async def fetch_recent_solana_gainers(limit: int = 5) -> list[dict]:

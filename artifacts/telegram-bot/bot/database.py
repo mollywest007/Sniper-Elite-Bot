@@ -1,3 +1,4 @@
+import asyncio
 import asyncpg
 from typing import Any, Optional
 from .config import (
@@ -337,6 +338,7 @@ async def execute_user_trade(
     slippage_percent: float,
     priority_fee: str,
     tx_hash: str,
+    market: dict[str, Any] | None = None,
 ) -> None:
     """Debit, ledger, and persist a trade/sniper atomically for one user."""
     if amount_sol <= 0:
@@ -379,6 +381,29 @@ async def execute_user_trade(
                 user_id, wallet_id, contract_address, f"{amount_sol:.9f}",
                 f"{slippage_percent:.2f}", priority_fee,
             )
+            if market:
+                price_sol = float(market["price_sol"])
+                if price_sol <= 0:
+                    raise ValueError("Token market price is unavailable")
+                amount_tokens = amount_sol / price_sol
+                await conn.execute(
+                    """INSERT INTO positions
+                       (telegram_user_id, wallet_id, token_symbol, token_name,
+                        contract_address, amount_tokens, value_sol,
+                        entry_price_sol, current_price_sol, pnl_percent, pnl_sol,
+                        market_cap_usd, liquidity_usd)
+                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,'0','0',$9,$10)""",
+                    user_id,
+                    wallet_id,
+                    market.get("symbol") or "TOKEN",
+                    market.get("name") or "Unknown",
+                    contract_address,
+                    f"{amount_tokens:.9f}",
+                    f"{amount_sol:.9f}",
+                    f"{price_sol:.18f}",
+                    f"{float(market.get('market_cap') or 0):.2f}",
+                    f"{float(market.get('liquidity') or 0):.2f}",
+                )
 
 
 async def sync_address_balance(address: str) -> float | None:
@@ -525,6 +550,64 @@ async def get_positions(user_id: int | None = None) -> list[dict[str, Any]]:
                 "SELECT * FROM positions WHERE telegram_user_id=$1", user_id
             )
         return [dict(r) for r in rows]
+
+
+async def refresh_user_positions(user_id: int) -> list[dict[str, Any]]:
+    """Refresh open position values from live market prices."""
+    positions = await get_positions(user_id)
+    if not positions:
+        return positions
+
+    from .market import fetch_token_market
+
+    quotes = await asyncio.gather(
+        *(fetch_token_market(p["contract_address"]) for p in positions),
+        return_exceptions=True,
+    )
+    async with pool().acquire() as conn:
+        for position, quote in zip(positions, quotes):
+            if not isinstance(quote, dict):
+                continue
+            try:
+                current_price = float(quote["price_sol"])
+                amount_tokens = float(position["amount_tokens"])
+                entry_price = float(position["entry_price_sol"])
+                value_sol = amount_tokens * current_price
+                invested_sol = amount_tokens * entry_price
+                pnl_sol = value_sol - invested_sol
+                pnl_percent = (pnl_sol / invested_sol * 100) if invested_sol else 0
+            except (KeyError, TypeError, ValueError, ZeroDivisionError):
+                continue
+            await conn.execute(
+                """UPDATE positions
+                   SET value_sol=$1, current_price_sol=$2, pnl_percent=$3,
+                       pnl_sol=$4, market_cap_usd=$5, liquidity_usd=$6
+                   WHERE id=$7 AND telegram_user_id=$8""",
+                f"{value_sol:.9f}",
+                f"{current_price:.18f}",
+                f"{pnl_percent:.4f}",
+                f"{pnl_sol:.9f}",
+                f"{float(quote.get('market_cap') or 0):.2f}",
+                f"{float(quote.get('liquidity') or 0):.2f}",
+                position["id"],
+                user_id,
+            )
+    return await get_positions(user_id)
+
+
+async def get_wallet_valuation(user_id: int) -> dict[str, Any]:
+    """Return cash plus live-valued holdings for one Telegram account."""
+    positions = await refresh_user_positions(user_id)
+    cash_balance = await get_user_balance(user_id)
+    positions_value = sum(float(p["value_sol"]) for p in positions)
+    unrealized_pnl = sum(float(p["pnl_sol"]) for p in positions)
+    return {
+        "cash_balance": cash_balance,
+        "positions": positions,
+        "positions_value": positions_value,
+        "unrealized_pnl": unrealized_pnl,
+        "total_value": cash_balance + positions_value,
+    }
 
 
 async def get_copy_trades(limit: int = 5, user_id: int | None = None) -> list[dict[str, Any]]:
