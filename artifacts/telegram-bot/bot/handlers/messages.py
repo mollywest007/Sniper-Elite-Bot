@@ -11,7 +11,9 @@ from ..database import (
     execute_user_trade, DepositAlreadyCreditedError,
 )
 from ..keyboards import kb_main, kb_back, kb_sniper, kb, btn
-from ..screens import screen_withdraw_confirm, screen_token_search, trunc, f_sol
+from ..screens import (
+    screen_withdraw_confirm, screen_token_search, screen_sniper_panel, trunc, f_sol
+)
 from ..state import (
     registered_users, pending_flows, snipe_mode_active,
     is_rate_limited, get_sniper_config, tracked_wallet_address,
@@ -322,7 +324,13 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             if v <= 0:
                 raise ValueError
             get_sniper_config(user_id)["take_profit_pct"] = v
-            await message.reply_text(f"Take profit set to `+{v:.1f}%`", parse_mode=ParseMode.MARKDOWN)
+            cfg = get_sniper_config(user_id)
+            await message.reply_text(
+                f"Take profit set to `+{v:.1f}%`.\n\n"
+                + screen_sniper_panel(cfg),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb_sniper(cfg),
+            )
         except (ValueError, TypeError):
             await message.reply_text("Invalid value.", parse_mode=ParseMode.MARKDOWN)
         return
