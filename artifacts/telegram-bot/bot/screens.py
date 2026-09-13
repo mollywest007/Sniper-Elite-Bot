@@ -45,7 +45,7 @@ def f_price(v) -> str:
 
 def screen_welcome(balance: float) -> str:
     return (
-        "🚀 *PHASE SNIPE*\n"
+        "*PHASE SNIPE*\n"
         "_Hyperspeed Solana Sniper Bot_\n\n"
         "*FEATURES*\n"
         "⚡ AI-Powered Sniping\n"

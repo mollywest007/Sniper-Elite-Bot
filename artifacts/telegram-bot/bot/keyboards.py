@@ -63,7 +63,7 @@ def kb_sniper_edit(cfg: dict) -> InlineKeyboardMarkup:
         [btn(f"💰 Amount: {f['buy_amount']:.4f} SOL", "sniper:set:amount")],
         [btn(f"↔️ Slippage: {f['slippage']}%", "sniper:set:slippage")],
         [btn("⚙️ Auto", "sniper:fee:auto"),   btn("🐢 Low", "sniper:fee:low")],
-        [btn("⚖️ Medium", "sniper:fee:medium"), btn("🚀 High", "sniper:fee:high")],
+        [btn("⚖️ Medium", "sniper:fee:medium"), btn("⚡ High", "sniper:fee:high")],
         [btn(f"🎯 TP: +{f['take_profit_pct']}%", "sniper:set:tp"),
          btn(f"🛡 SL: -{f['stop_loss_pct']}%", "sniper:set:sl")],
         [btn(f"💸 Auto Sell: {'✅ ON' if f['auto_sell'] else 'OFF'}", "sniper:toggle:autoSell")],
