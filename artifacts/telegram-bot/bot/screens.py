@@ -48,11 +48,11 @@ def screen_welcome(balance: float) -> str:
         "*PHASE SNIPE*\n"
         "_Hyperspeed Solana Sniper Bot_\n\n"
         "*FEATURES*\n"
-        "⚡ AI-Powered Sniping\n"
-        "👥 Copy Trading System\n"
-        "📡 Real-Time Market Data\n"
-        "🛡 Advanced Risk Management\n\n"
-        f"💼 Wallet Value   `{f_sol(balance)} SOL`\n\n"
+        "AI-Powered Sniping\n"
+        "Copy Trading System\n"
+        "Real-Time Market Data\n"
+        "Advanced Risk Management\n\n"
+        f"Wallet Value   `{f_sol(balance)} SOL`\n\n"
         "Get started — tap *Wallet* below"
     )
 
