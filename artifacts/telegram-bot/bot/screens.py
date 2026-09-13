@@ -75,13 +75,13 @@ def screen_wallet(
     total_value = balance + positions_value
     pnl_sign = "+" if unrealized_pnl >= 0 else ""
     return (
-        "💼 *Wallet*\n\n"
-        f"📍 *Address*\n`{BOT_WALLET_ADDRESS}`\n\n"
-        f"💰 *Available SOL*  ·  `{f_sol(balance)} SOL`\n"
-        f"🪙 *Token Holdings*  ·  `{f_sol(positions_value)} SOL`\n"
-        f"📈 *Unrealized P/L*  ·  `{pnl_sign}{f_sol(unrealized_pnl)} SOL`\n"
-        f"💎 *Total Wallet Value*  ·  `{f_sol(total_value)} SOL`\n\n"
-        "🔐 *Private key*  ·  configured and stored in bot\n\n"
+        "*Wallet*\n\n"
+        f"*Address*\n`{BOT_WALLET_ADDRESS}`\n\n"
+        f"*Available SOL*  ·  `{f_sol(balance)} SOL`\n"
+        f"*Token Holdings*  ·  `{f_sol(positions_value)} SOL`\n"
+        f"*Unrealized P/L*  ·  `{pnl_sign}{f_sol(unrealized_pnl)} SOL`\n"
+        f"*Total Wallet Value*  ·  `{f_sol(total_value)} SOL`\n\n"
+        "*Private key*  ·  configured and stored in bot\n\n"
         "_Tap the address to copy it_"
     )
 
