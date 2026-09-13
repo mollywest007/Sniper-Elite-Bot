@@ -97,7 +97,12 @@ def screen_deposit(user_id: int | None = None) -> str:
     )
 
 
-def screen_minimum_balance(balance_sol: float, sol_usd: float | None) -> str:
+def screen_minimum_balance(
+    balance_sol: float,
+    sol_usd: float | None,
+    minimum_usd: float = 50.0,
+    action: str = "use this feature",
+) -> str:
     if sol_usd is None:
         return (
             "🔒 *Wallet minimum required*\n\n"
@@ -107,7 +112,7 @@ def screen_minimum_balance(balance_sol: float, sol_usd: float | None) -> str:
         )
     return (
         "🔒 *Wallet minimum required*\n\n"
-        f"Keep at least *$50.00* in your wallet to use this feature.\n\n"
+        f"Keep at least *${minimum_usd:.2f}* in your wallet to {action}.\n\n"
         f"Current balance  `{f_usd(balance_sol * sol_usd)}`\n"
         f"Available       `{f_sol(balance_sol)} SOL`\n"
         f"SOL price       `{f_usd(sol_usd)}`\n\n"

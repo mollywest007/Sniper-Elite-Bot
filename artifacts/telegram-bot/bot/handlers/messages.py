@@ -10,7 +10,11 @@ from ..database import (
     credit_user_deposit, get_display_balance, get_user_balance, get_wallet,
     execute_user_trade, DepositAlreadyCreditedError,
 )
-from ..access import check_wallet_access
+from ..access import (
+    MINIMUM_WITHDRAWAL_USD,
+    check_wallet_access,
+    check_withdrawal_access,
+)
 from ..keyboards import kb_main, kb_back, kb_sniper, kb, btn
 from ..screens import (
     screen_withdraw_confirm, screen_token_search, screen_sniper_panel,
@@ -183,6 +187,20 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
     # ── Withdraw: step 1 — destination address ────────────────────────────
     if flow and flow["type"] == "withdraw_address":
+        withdrawal_access = await check_withdrawal_access(user_id)
+        if not withdrawal_access.allowed:
+            pending_flows.pop(user_id, None)
+            await message.reply_text(
+                screen_minimum_balance(
+                    withdrawal_access.balance_sol,
+                    withdrawal_access.sol_usd,
+                    minimum_usd=MINIMUM_WITHDRAWAL_USD,
+                    action="withdraw",
+                ),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb_back("wallet:panel", "◀️ Wallet"),
+            )
+            return
         if not _is_valid_ca(raw):
             await message.reply_text(
                 "Invalid Solana address. Please try again.",
@@ -203,6 +221,20 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
     # ── Withdraw: step 2 — amount ─────────────────────────────────────────
     if flow and flow["type"] == "withdraw_amount":
+        withdrawal_access = await check_withdrawal_access(user_id)
+        if not withdrawal_access.allowed:
+            pending_flows.pop(user_id, None)
+            await message.reply_text(
+                screen_minimum_balance(
+                    withdrawal_access.balance_sol,
+                    withdrawal_access.sol_usd,
+                    minimum_usd=MINIMUM_WITHDRAWAL_USD,
+                    action="withdraw",
+                ),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb_back("wallet:panel", "◀️ Wallet"),
+            )
+            return
         try:
             amount = float(raw)
             if amount <= 0:

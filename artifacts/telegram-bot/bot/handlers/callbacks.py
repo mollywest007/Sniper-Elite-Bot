@@ -14,7 +14,11 @@ from ..database import (
     get_positions, get_copy_trades, get_limit_orders,
     get_wallet, mark_wallet_generated, debit_user_balance, get_wallet_valuation,
 )
-from ..access import check_wallet_access
+from ..access import (
+    MINIMUM_WITHDRAWAL_USD,
+    check_wallet_access,
+    check_withdrawal_access,
+)
 from ..keyboards import (
     kb_main, kb_back, kb_sniper, kb_wallet, kb_deposit, kb_sniper_edit,
     kb_alerts, btn, kb,
@@ -205,6 +209,20 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     data: str = query.data or ""
+
+    if data in {"withdraw:start"} or data.startswith("withdraw:confirm:"):
+        withdrawal_access = await check_withdrawal_access(user_id)
+        if not withdrawal_access.allowed:
+            return await _edit(
+                query,
+                screen_minimum_balance(
+                    withdrawal_access.balance_sol,
+                    withdrawal_access.sol_usd,
+                    minimum_usd=MINIMUM_WITHDRAWAL_USD,
+                    action="withdraw",
+                ),
+                kb_back("wallet:panel", "◀️ Wallet"),
+            )
 
     # Wallet and funding screens remain available so users can reach the
     # required balance. All trading, market, settings, and alert features
