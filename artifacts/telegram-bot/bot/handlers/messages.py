@@ -169,10 +169,10 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             return
         pending_flows.pop(user_id, None)
         await message.reply_text(
-            f"*Deposit Credited*\n\n"
-            f"Amount   `{f_sol(amount)} SOL`\n"
-            f"Balance  `{f_sol(balance)} SOL`\n"
-            f"TX       `{trunc(tx_hash, 8)}`",
+                f"✅ *Deposit Credited*\n\n"
+                f"💰 Amount   `{f_sol(amount)} SOL`\n"
+                f"💼 Balance  `{f_sol(balance)} SOL`\n"
+                f"🧾 TX       `{trunc(tx_hash, 8)}`",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=kb(
                 [btn("Open Wallet", "wallet:panel")],
@@ -192,9 +192,9 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         balance = await get_display_balance(user)
         pending_flows[user_id] = {"type": "withdraw_amount", "to_address": raw}
         await message.reply_text(
-            f"*Withdraw*\n\n"
-            f"To         `{trunc(raw, 10)}`\n"
-            f"Available  `{f_sol(balance)} SOL`\n\n"
+            f"↗️ *Withdraw*\n\n"
+            f"📍 To         `{trunc(raw, 10)}`\n"
+            f"💰 Available  `{f_sol(balance)} SOL`\n\n"
             "Step 2 of 2 — enter the amount in SOL:",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=kb_back("withdraw:cancel", "Cancel"),

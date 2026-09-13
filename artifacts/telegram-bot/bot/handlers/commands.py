@@ -95,7 +95,7 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if is_rate_limited(user.id):
         return
     text = (
-        "*Help*\n\n"
+        "❓ *Help*\n\n"
         "`/start`   Main menu\n"
         "`/wallet`  Wallet details\n"
         "`/menu`    Return to menu\n"

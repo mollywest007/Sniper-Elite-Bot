@@ -337,7 +337,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         pending_flows[user_id] = {"type": "withdraw_address"}
         return await _edit(
             query,
-            "*Withdraw SOL*\n\n"
+            "↗️ *Withdraw SOL*\n\n"
             "Step 1 of 2 — enter the *destination wallet address*:",
             kb_back("withdraw:cancel", "Cancel"),
         )
@@ -382,7 +382,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         if not addr:
             return await _edit(
                 query,
-                "*Wallet Alerts*\n\n"
+                "🔔 *Wallet Alerts*\n\n"
                 "No wallet set to track yet.\n\n"
                 "Send the bot a Solana wallet address first, then come back to enable alerts.",
                 kb([btn("Set Wallet to Track", "alerts:set_wallet"), btn("◀ Home", "menu:home")]),
@@ -390,7 +390,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         is_on = user_id in alert_subscribers
         return await _edit(
             query,
-            f"*Wallet Alerts*\n\n"
+            f"🔔 *Wallet Alerts*\n\n"
             f"Status  {'✅ *Active*' if is_on else 'Inactive'}\n\n"
             f"Tracking  `{trunc(addr, 12)}`",
             kb_alerts(user_id),
@@ -400,7 +400,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         pending_flows[user_id] = {"type": "set_tracked_wallet"}
         return await _edit(
             query,
-            "*Set Wallet to Track*\n\n"
+            "🖊 *Set Wallet to Track*\n\n"
             "Send me the Solana wallet address you want to monitor for alerts.\n\n"
             "_Paste the address as a message:_",
             kb([btn("Cancel", "alerts:menu")]),
@@ -413,7 +413,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             if not addr:
                 return await _edit(
                     query,
-                    "*Wallet Alerts*\n\n"
+                    "🔔 *Wallet Alerts*\n\n"
                     "No wallet set to track yet.\n\n"
                     "Send the bot a Solana wallet address first, then come back to enable alerts.",
                     kb([btn("Set Wallet to Track", "alerts:set_wallet"), btn("◀ Home", "menu:home")]),
@@ -425,7 +425,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         is_on = user_id in alert_subscribers
         return await _edit(
             query,
-            f"*Wallet Alerts*\n\n"
+            f"🔔 *Wallet Alerts*\n\n"
             f"Status  {'✅ *Active*' if is_on else 'Inactive'}\n\n"
             f"Tracking  `{trunc(addr, 12)}`",
             kb_alerts(user_id),
@@ -440,7 +440,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         label = labels.get(alert_type, "Alert")
         return await _edit(
             query,
-            f"*{label} Alerts*\n\n"
+            f"🔔 *{label} Alerts*\n\n"
             f"Currently ✅ *active* for all {label.lower()} events.",
             kb([btn("All Alerts", "alerts:menu"), btn("◀ Home", "menu:home")]),
         )
@@ -476,7 +476,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         pending_flows[user_id] = {"type": "snipe_ca"}
         return await _edit(
             query,
-            "*Snipe a Token*\n\nPaste the contract address below:",
+            "🎯 *Snipe a Token*\n\nPaste the contract address below:",
             kb_back("sniper:panel", "Cancel"),
         )
 
@@ -516,7 +516,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     if data == "sniper:list":
         snipers = await get_snipers(8, user_id)
-        text = "*My Snipers*\n\n"
+        text = "🗂 *My Snipers*\n\n"
         if not snipers:
             text += "No snipers yet.\n\nPaste a CA to create your first sniper."
         else:
@@ -541,7 +541,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         await update_sniper_status(sniper_id, new_status, user_id)
         return await _edit(
             query,
-            f"Sniper #{sniper_id} {new_status}.",
+            f"🎯 Sniper #{sniper_id} {new_status}.",
             kb(
                 [btn("Snipers", "sniper:list"),
                  btn("◀ Panel", "sniper:panel")],
@@ -561,11 +561,11 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         positions = valuation["positions"]
         balance = valuation["cash_balance"]
         text = (
-            f"*Portfolio*\n\n"
-            f"Available SOL  `{f_sol(balance)} SOL`\n"
-            f"Holdings       `{f_sol(valuation['positions_value'])} SOL`\n"
-            f"Total Value    `{f_sol(valuation['total_value'])} SOL`\n"
-            f"Unrealized P/L `{f_sol(valuation['unrealized_pnl'])} SOL`\n\n"
+            f"📊 *Portfolio*\n\n"
+            f"💰 Available SOL  `{f_sol(balance)} SOL`\n"
+            f"🪙 Holdings       `{f_sol(valuation['positions_value'])} SOL`\n"
+            f"💎 Total Value    `{f_sol(valuation['total_value'])} SOL`\n"
+            f"📈 Unrealized P/L `{f_sol(valuation['unrealized_pnl'])} SOL`\n\n"
         )
         if not positions:
             text += "No open positions.\n\nUse the Sniper Panel to start trading."
@@ -595,12 +595,12 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         s = await get_or_create_settings()
         return await _edit(
             query,
-            f"*Settings*\n\n"
-            f"Buy Amount  `{f_sol(s['default_buy_amount_sol'])} SOL`\n"
-            f"Slippage    `{s['default_slippage_percent']}%`\n"
-            f"Fee         `{s['default_priority_fee']}`\n"
-            f"Auto Approve  {'✅ ON' if s['auto_approve'] else 'OFF'}\n\n"
-            f"Notifications\n"
+            f"⚙️ *Settings*\n\n"
+            f"💰 Buy Amount  `{f_sol(s['default_buy_amount_sol'])} SOL`\n"
+            f"↔️ Slippage    `{s['default_slippage_percent']}%`\n"
+            f"⚡ Fee         `{s['default_priority_fee']}`\n"
+            f"✅ Auto Approve  {'ON' if s['auto_approve'] else 'OFF'}\n\n"
+            f"🔔 Notifications\n"
             f"Buy {'✅ ON' if s['notify_buy'] else 'OFF'}  "
             f"Sell {'✅ ON' if s['notify_sell'] else 'OFF'}  "
             f"Sniper {'✅ ON' if s['notify_sniper'] else 'OFF'}  "
@@ -638,11 +638,11 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         s2 = await get_or_create_settings()
         return await _edit(
             query,
-            f"*Settings*\n\n"
-            f"Buy Amount  `{f_sol(s2['default_buy_amount_sol'])} SOL`\n"
-            f"Slippage    `{s2['default_slippage_percent']}%`\n"
-            f"Fee         `{s2['default_priority_fee']}`\n\n"
-            f"Notifications\n"
+            f"⚙️ *Settings*\n\n"
+            f"💰 Buy Amount  `{f_sol(s2['default_buy_amount_sol'])} SOL`\n"
+            f"↔️ Slippage    `{s2['default_slippage_percent']}%`\n"
+            f"⚡ Fee         `{s2['default_priority_fee']}`\n\n"
+            f"🔔 Notifications\n"
             f"Buy {'✅ ON' if s2['notify_buy'] else 'OFF'}  "
             f"Sell {'✅ ON' if s2['notify_sell'] else 'OFF'}  "
             f"Sniper {'✅ ON' if s2['notify_sniper'] else 'OFF'}  "
@@ -667,11 +667,11 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         s = await get_or_create_settings()
         return await _edit(
             query,
-            f"*Security*\n\n"
+            f"🔐 *Security*\n\n"
             f"PIN Lock         {'✅ Enabled' if s['pin_lock_enabled'] else 'Disabled'}\n"
             f"Session Timeout  `{s['session_timeout_minutes']} min`\n"
             f"Anti-Spam        ✅ Active\n\n"
-            "Wallet security:\n"
+            "🛡 Wallet security:\n"
             "· Private key stored in environment only\n"
             "· Never transmitted over the network\n"
             "· End-to-end encrypted sessions",
@@ -697,7 +697,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     # ── Copy Trades ───────────────────────────────────────────────────────
     if data == "copy:menu":
         cts = await get_copy_trades(5, user_id)
-        text = "*Copy Trading*\n\n"
+        text = "👥 *Copy Trading*\n\n"
         if not cts:
             text += "No copy targets yet.\n\nUse: `copy <wallet> [sol]`"
         else:
@@ -711,7 +711,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     if data == "limits:menu":
         orders = await get_limit_orders(5, user_id)
-        text = "*Limit Orders*\n\n"
+        text = "📌 *Limit Orders*\n\n"
         if not orders:
             text += "No limit orders.\n\nUse: `limit <ca> tp:<pct> sl:<pct>`"
         else:
@@ -729,7 +729,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     if data == "help:show":
         return await _edit(
             query,
-            "*Help*\n\n"
+            "❓ *Help*\n\n"
             "`/start`   Main menu\n"
             "`/wallet`  Wallet details\n"
             "`/menu`    Return to menu\n"
