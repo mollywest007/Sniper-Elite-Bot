@@ -97,6 +97,24 @@ def screen_deposit(user_id: int | None = None) -> str:
     )
 
 
+def screen_minimum_balance(balance_sol: float, sol_usd: float | None) -> str:
+    if sol_usd is None:
+        return (
+            "*Wallet minimum required*\n\n"
+            "This feature is temporarily unavailable because the live SOL/USD "
+            "price could not be loaded.\n\n"
+            "Please try again in a moment."
+        )
+    return (
+        "*Wallet minimum required*\n\n"
+        f"Keep at least *$50.00* in your wallet to use this feature.\n\n"
+        f"Current balance  `{f_usd(balance_sol * sol_usd)}`\n"
+        f"Available       `{f_sol(balance_sol)} SOL`\n"
+        f"SOL price       `{f_usd(sol_usd)}`\n\n"
+        "Use *Wallet → Deposit* to add funds, then try again."
+    )
+
+
 def screen_sniper_panel(cfg: dict) -> str:
     status = "✅ Active — paste any CA to snipe" if cfg["sniping"] else "Idle"
     return (

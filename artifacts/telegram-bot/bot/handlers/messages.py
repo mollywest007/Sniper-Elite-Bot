@@ -10,9 +10,11 @@ from ..database import (
     credit_user_deposit, get_display_balance, get_user_balance, get_wallet,
     execute_user_trade, DepositAlreadyCreditedError,
 )
+from ..access import check_wallet_access
 from ..keyboards import kb_main, kb_back, kb_sniper, kb, btn
 from ..screens import (
-    screen_withdraw_confirm, screen_token_search, screen_sniper_panel, trunc, f_sol
+    screen_withdraw_confirm, screen_token_search, screen_sniper_panel,
+    screen_minimum_balance, trunc, f_sol
 )
 from ..state import (
     registered_users, pending_flows, snipe_mode_active,
@@ -232,6 +234,20 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             ]),
         )
         return
+
+    if flow and flow["type"] not in {"deposit_tx_hash", "withdraw_address", "withdraw_amount"}:
+        access = await check_wallet_access(user_id)
+        if not access.allowed:
+            pending_flows.pop(user_id, None)
+            await message.reply_text(
+                screen_minimum_balance(access.balance_sol, access.sol_usd),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb(
+                    [btn("Open Wallet", "wallet:panel")],
+                    [btn("Deposit", "deposit:show")],
+                ),
+            )
+            return
 
     # ── Search Token ────────────────────────────────────────────────────────
     if flow and flow["type"] == "search_token":

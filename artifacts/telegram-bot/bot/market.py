@@ -69,6 +69,11 @@ async def _fetch_sol_usd_price(client: httpx.AsyncClient) -> float | None:
     return price or None
 
 
+async def fetch_sol_usd_price() -> float | None:
+    """Return the current SOL/USD price used for wallet access checks."""
+    return await _fetch_sol_usd_price(_http_client())
+
+
 async def fetch_token_market(address: str) -> dict | None:
     """Return a live SOL-denominated quote for a Solana token."""
     client = _http_client()
