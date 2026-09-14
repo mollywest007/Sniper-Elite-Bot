@@ -373,7 +373,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         pending_flows.pop(user_id, None)
         tx = _rand_tx()
         try:
-            await debit_user_balance(
+            remaining_balance = await debit_user_balance(
                 user_id, amount, "withdrawal", tx,
                 f"Withdrawal to {to_addr}",
             )
@@ -386,12 +386,16 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             )
         return await _edit(
             query,
-            f"*Withdrawal Submitted*\n\n"
-            f"Amount  `{f_sol(amount)} SOL`\n"
-            f"To      `{trunc(to_addr, 10)}`\n"
-            f"TX      `{tx[:16]}...`\n\n"
-            "_Transaction confirmed on Solana_",
-            kb([btn("◀ Main Menu", "menu:home")]),
+            f"✅ *Withdrawal Requested*\n\n"
+            f"Amount     `{f_sol(amount)} SOL`\n"
+            f"To         `{trunc(to_addr, 10)}`\n"
+            f"Remaining  `{f_sol(remaining_balance)} SOL`\n\n"
+            "Your money is on its way. It can take up to *20 minutes* "
+            "to arrive in the wallet you selected.\n\n"
+            "_The amount has been removed from your bot wallet and is now "
+            "being processed._",
+            kb([btn("💼 Open Wallet", "wallet:panel")],
+               [btn("◀️ Main Menu", "menu:home")]),
         )
 
     # ── Alerts ────────────────────────────────────────────────────────────

@@ -213,5 +213,6 @@ def screen_withdraw_confirm(to_address: str, amount: float) -> str:
         f"📍 To           `{trunc(to_address, 10)}`\n"
         f"📤 From         `{trunc(BOT_WALLET_ADDRESS, 8)}`\n\n"
         "_This action cannot be undone._\n\n"
+        "Transfers can take up to *20 minutes* to arrive.\n\n"
         "Confirm the transaction?"
     )
