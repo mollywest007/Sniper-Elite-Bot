@@ -4,10 +4,9 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
-from ..access import check_wallet_access
 from ..database import get_wallet_valuation, get_or_create_settings, update_settings, touch_bot_user
 from ..keyboards import kb_main, kb_back
-from ..screens import screen_welcome, screen_minimum_balance
+from ..screens import screen_welcome
 from ..state import registered_users, wallet_generated, is_rate_limited
 from ..logger import logger
 
@@ -124,14 +123,6 @@ async def cmd_set(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not user:
         return
     if is_rate_limited(user.id):
-        return
-    access = await check_wallet_access(user.id)
-    if not access.allowed:
-        await update.message.reply_text(
-            screen_minimum_balance(access.balance_sol, access.sol_usd),
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=kb_back("wallet:panel", "Open Wallet"),
-        )
         return
     args = ctx.args or []
     if len(args) < 2:

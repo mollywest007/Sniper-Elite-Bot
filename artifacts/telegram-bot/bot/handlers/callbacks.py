@@ -224,31 +224,6 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
                 kb_back("wallet:panel", "◀️ Wallet"),
             )
 
-    # Wallet and funding screens remain available so users can reach the
-    # required balance. All trading, market, settings, and alert features
-    # require a live wallet value of at least $50.
-    access_exempt = (
-        data in {
-            "menu:home", "menu:refresh",
-            "wallet:show", "wallet:panel", "wallet:refresh", "wallet:history",
-            "deposit:show", "deposit:verify",
-            "withdraw:start", "withdraw:cancel",
-            "help:show",
-        }
-        or data.startswith("withdraw:confirm:")
-    )
-    if not access_exempt:
-        access = await check_wallet_access(user_id)
-        if not access.allowed:
-            return await _edit(
-                query,
-                screen_minimum_balance(access.balance_sol, access.sol_usd),
-                kb(
-                    [btn("Open Wallet", "wallet:panel")],
-                    [btn("Deposit", "deposit:show")],
-                ),
-            )
-
     # ── Main Menu ─────────────────────────────────────────────────────────
     if data == "menu:home":
         valuation = await get_wallet_valuation(user_id)
