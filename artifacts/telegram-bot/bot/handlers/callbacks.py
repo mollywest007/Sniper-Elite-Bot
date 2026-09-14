@@ -739,7 +739,9 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             "`/set slippage 10`\n"
             "`/set fee auto|low|medium|high`\n\n"
             "*Supported DEXs*\n"
-            "[Raydium](https://raydium.io) · [Jupiter](https://jup.ag) · [Pump.fun](https://pump.fun)\n\n"
+            "[Raydium](https://raydium.io)\n"
+            "[Jupiter](https://jup.ag)\n"
+            "[Pump fun](https://pump.fun)\n\n"
             "*Support*\n"
              "Contact  t.me/developer9997",
             kb_back("menu:home", "◀ Main Menu"),
