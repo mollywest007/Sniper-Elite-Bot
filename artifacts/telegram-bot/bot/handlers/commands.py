@@ -107,7 +107,7 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         "`/set slippage 10`\n"
         "`/set fee auto|low|medium|high`\n\n"
         "*Supported DEXs*\n"
-        "Raydium · Jupiter · Pump.fun\n\n"
+        "[Raydium](https://raydium.io) · [Jupiter](https://jup.ag) · [Pump.fun](https://pump.fun)\n\n"
         "*Support*\n"
         "Contact  t.me/developer9997"
     )

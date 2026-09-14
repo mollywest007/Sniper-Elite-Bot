@@ -132,7 +132,7 @@ def screen_sniper_panel(cfg: dict) -> str:
         f"🎯 Take Profit  `+{cfg['take_profit_pct']}%`\n"
         f"🛡 Stop Loss    `-{cfg['stop_loss_pct']}%`\n"
         f"💸 Auto Sell    {'✅ ON' if cfg['auto_sell'] else 'OFF'}\n\n"
-        "_Integrations: Raydium · Jupiter · Pump.fun_"
+        "_Integrations: [Raydium](https://raydium.io) · [Jupiter](https://jup.ag) · [Pump.fun](https://pump.fun)_"
     )
 
 
