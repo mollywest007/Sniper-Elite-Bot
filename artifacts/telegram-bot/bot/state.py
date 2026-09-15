@@ -34,7 +34,7 @@ def get_sniper_config(user_id: int) -> dict[str, Any]:
             "priority_fee": "auto",
             "take_profit_pct": 50,
             "stop_loss_pct": 20,
-            "auto_sell": False,
+            "auto_sell": True,
             "sniping": False,
         }
     return sniper_configs[user_id]

@@ -47,6 +47,9 @@ export const positionsTable = pgTable("positions", {
   pnlSol: numeric("pnl_sol", { precision: 18, scale: 9 }).notNull().default("0"),
   marketCapUsd: numeric("market_cap_usd", { precision: 20, scale: 2 }).notNull().default("0"),
   liquidityUsd: numeric("liquidity_usd", { precision: 20, scale: 2 }).notNull().default("0"),
+  takeProfitPercent: numeric("take_profit_percent", { precision: 8, scale: 2 }).notNull().default("50"),
+  stopLossPercent: numeric("stop_loss_percent", { precision: 8, scale: 2 }).notNull().default("20"),
+  autoSell: boolean("auto_sell").notNull().default(true),
   openedAt: timestamp("opened_at").notNull().defaultNow(),
 });
 

@@ -156,6 +156,9 @@ async def _execute_buy(query, user_id: int, contract_address: str) -> None:
             priority_fee=cfg["priority_fee"],
             tx_hash=tx,
             market=market,
+            take_profit_percent=cfg["take_profit_pct"],
+            stop_loss_percent=cfg["stop_loss_pct"],
+            auto_sell=cfg["auto_sell"],
         )
     except ValueError:
         balance = await get_user_balance(user_id)

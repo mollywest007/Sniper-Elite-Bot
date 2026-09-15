@@ -1,5 +1,6 @@
 import asyncio
 import asyncpg
+import secrets
 from typing import Any, Optional
 from .config import (
     DATABASE_URL,
@@ -108,6 +109,24 @@ async def seed() -> None:
                 f"""CREATE INDEX IF NOT EXISTS {table}_telegram_user_id_idx
                     ON {table}(telegram_user_id)"""
             )
+        await conn.execute(
+            """ALTER TABLE positions
+               ADD COLUMN IF NOT EXISTS take_profit_percent NUMERIC(8,2)
+                   NOT NULL DEFAULT 50"""
+        )
+        await conn.execute(
+            """ALTER TABLE positions
+               ADD COLUMN IF NOT EXISTS stop_loss_percent NUMERIC(8,2)
+                   NOT NULL DEFAULT 20"""
+        )
+        await conn.execute(
+            """ALTER TABLE positions
+               ADD COLUMN IF NOT EXISTS auto_sell BOOLEAN
+                   NOT NULL DEFAULT TRUE"""
+        )
+        await conn.execute(
+            "ALTER TABLE positions ALTER COLUMN auto_sell SET DEFAULT TRUE"
+        )
         await conn.execute(
             """CREATE INDEX IF NOT EXISTS bot_transactions_user_created_idx
                ON bot_transactions(telegram_user_id, created_at DESC)"""
@@ -339,10 +358,24 @@ async def execute_user_trade(
     priority_fee: str,
     tx_hash: str,
     market: dict[str, Any] | None = None,
+    take_profit_percent: float = 50,
+    stop_loss_percent: float = 20,
+    auto_sell: bool = True,
 ) -> None:
     """Debit, ledger, and persist a trade/sniper atomically for one user."""
     if amount_sol <= 0:
         raise ValueError("Amount must be positive")
+    if take_profit_percent <= 0 or stop_loss_percent <= 0:
+        raise ValueError("Take profit and stop loss must be positive")
+    if not market:
+        raise ValueError("Token market price is unavailable")
+    try:
+        price_sol = float(market["price_sol"])
+    except (KeyError, TypeError, ValueError):
+        raise ValueError("Token market price is unavailable")
+    if price_sol <= 0:
+        raise ValueError("Token market price is unavailable")
+    amount_tokens = amount_sol / price_sol
     await ensure_bot_user(user_id)
     async with pool().acquire() as conn:
         async with conn.transaction():
@@ -369,9 +402,16 @@ async def execute_user_trade(
                    (telegram_user_id, wallet_id, type, token_symbol, token_name,
                     contract_address, amount_sol, amount_tokens, price_sol,
                     tx_hash, status)
-                   VALUES ($1,$2,'buy','TOKEN','Unknown',$3,$4,'0','0',$5,
+                   VALUES ($1,$2,'buy',$3,$4,$5,$6,$7,$8,$9,
                            'success'::trade_status)""",
-                user_id, wallet_id, contract_address, f"{amount_sol:.9f}", tx_hash,
+                user_id, wallet_id,
+                market.get("symbol") or "TOKEN",
+                market.get("name") or "Unknown",
+                contract_address,
+                f"{amount_sol:.9f}",
+                f"{amount_tokens:.9f}",
+                f"{price_sol:.18f}",
+                tx_hash,
             )
             await conn.execute(
                 """INSERT INTO snipers
@@ -381,29 +421,157 @@ async def execute_user_trade(
                 user_id, wallet_id, contract_address, f"{amount_sol:.9f}",
                 f"{slippage_percent:.2f}", priority_fee,
             )
-            if market:
-                price_sol = float(market["price_sol"])
-                if price_sol <= 0:
-                    raise ValueError("Token market price is unavailable")
-                amount_tokens = amount_sol / price_sol
+            await conn.execute(
+                """INSERT INTO positions
+                   (telegram_user_id, wallet_id, token_symbol, token_name,
+                    contract_address, amount_tokens, value_sol,
+                    entry_price_sol, current_price_sol, pnl_percent, pnl_sol,
+                    market_cap_usd, liquidity_usd,
+                    take_profit_percent, stop_loss_percent, auto_sell)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,'0','0',$9,$10,$11,$12,$13)""",
+                user_id,
+                wallet_id,
+                market.get("symbol") or "TOKEN",
+                market.get("name") or "Unknown",
+                contract_address,
+                f"{amount_tokens:.9f}",
+                f"{amount_sol:.9f}",
+                f"{price_sol:.18f}",
+                f"{float(market.get('market_cap') or 0):.2f}",
+                f"{float(market.get('liquidity') or 0):.2f}",
+                f"{take_profit_percent:.2f}",
+                f"{stop_loss_percent:.2f}",
+                auto_sell,
+            )
+
+
+async def settle_position_if_triggered(
+    position_id: int,
+    current_price_sol: float,
+    market: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Close an open position at its TP or SL and credit the user ledger.
+
+    The position lock and ledger credit share one transaction so a scheduled
+    monitor cannot sell the same position twice or credit a partial result.
+    Returns the settlement details when a trigger fires, otherwise None.
+    """
+    if current_price_sol <= 0:
+        return None
+
+    async with pool().acquire() as conn:
+        async with conn.transaction():
+            position = await conn.fetchrow(
+                "SELECT * FROM positions WHERE id=$1 FOR UPDATE",
+                position_id,
+            )
+            if not position:
+                return None
+
+            amount_tokens = float(position["amount_tokens"])
+            entry_price_sol = float(position["entry_price_sol"])
+            value_sol = amount_tokens * current_price_sol
+            invested_sol = amount_tokens * entry_price_sol
+            pnl_sol = value_sol - invested_sol
+            pnl_percent = (pnl_sol / invested_sol * 100) if invested_sol else 0.0
+            take_profit_percent = float(position["take_profit_percent"])
+            stop_loss_percent = float(position["stop_loss_percent"])
+
+            if (
+                not position["auto_sell"]
+                or (
+                    pnl_percent < take_profit_percent
+                    and pnl_percent > -stop_loss_percent
+                )
+            ):
                 await conn.execute(
-                    """INSERT INTO positions
-                       (telegram_user_id, wallet_id, token_symbol, token_name,
-                        contract_address, amount_tokens, value_sol,
-                        entry_price_sol, current_price_sol, pnl_percent, pnl_sol,
-                        market_cap_usd, liquidity_usd)
-                       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,'0','0',$9,$10)""",
-                    user_id,
-                    wallet_id,
-                    market.get("symbol") or "TOKEN",
-                    market.get("name") or "Unknown",
-                    contract_address,
-                    f"{amount_tokens:.9f}",
-                    f"{amount_sol:.9f}",
-                    f"{price_sol:.18f}",
+                    """UPDATE positions
+                       SET value_sol=$1, current_price_sol=$2, pnl_percent=$3,
+                           pnl_sol=$4, market_cap_usd=$5, liquidity_usd=$6
+                       WHERE id=$7""",
+                    f"{value_sol:.9f}",
+                    f"{current_price_sol:.18f}",
+                    f"{pnl_percent:.4f}",
+                    f"{pnl_sol:.9f}",
                     f"{float(market.get('market_cap') or 0):.2f}",
                     f"{float(market.get('liquidity') or 0):.2f}",
+                    position_id,
                 )
+                return None
+
+            reason = "take_profit" if pnl_percent >= take_profit_percent else "stop_loss"
+            tx_hash = f"auto-sell-{position_id}-{secrets.token_hex(24)}"
+            balance_row = await conn.fetchrow(
+                """UPDATE bot_accounts
+                   SET balance_sol = balance_sol + $1, updated_at = NOW()
+                   WHERE telegram_user_id=$2
+                   RETURNING balance_sol""",
+                f"{value_sol:.9f}",
+                position["telegram_user_id"],
+            )
+            if not balance_row:
+                raise ValueError("User account is unavailable for position settlement")
+
+            await conn.execute(
+                """INSERT INTO bot_transactions
+                   (telegram_user_id, transaction_type, amount_sol,
+                    balance_after, tx_hash, description)
+                   VALUES ($1,'trade',$2,$3,$4,$5)""",
+                position["telegram_user_id"],
+                f"{value_sol:.9f}",
+                balance_row["balance_sol"],
+                tx_hash,
+                f"Auto-sell {position['token_symbol']} ({reason.replace('_', ' ')})",
+            )
+            await conn.execute(
+                """INSERT INTO trades
+                   (telegram_user_id, wallet_id, type, token_symbol, token_name,
+                    contract_address, amount_sol, amount_tokens, price_sol,
+                    pnl_percent, pnl_sol, tx_hash, status)
+                   VALUES ($1,$2,'sell',$3,$4,$5,$6,$7,$8,$9,$10,$11,
+                           'success'::trade_status)""",
+                position["telegram_user_id"],
+                position["wallet_id"],
+                position["token_symbol"],
+                position["token_name"],
+                position["contract_address"],
+                f"{value_sol:.9f}",
+                f"{amount_tokens:.9f}",
+                f"{current_price_sol:.18f}",
+                f"{pnl_percent:.4f}",
+                f"{pnl_sol:.9f}",
+                tx_hash,
+            )
+            await conn.execute(
+                "DELETE FROM positions WHERE id=$1",
+                position_id,
+            )
+            await conn.execute(
+                """UPDATE snipers
+                   SET status='stopped'::sniper_status, updated_at=NOW()
+                   WHERE id=(
+                       SELECT id FROM snipers
+                       WHERE telegram_user_id=$1
+                         AND contract_address=$2
+                         AND status='sniped'::sniper_status
+                       ORDER BY created_at DESC
+                       LIMIT 1
+                   )""",
+                position["telegram_user_id"],
+                position["contract_address"],
+            )
+            return {
+                "user_id": int(position["telegram_user_id"]),
+                "symbol": position["token_symbol"],
+                "contract_address": position["contract_address"],
+                "reason": reason,
+                "current_price_sol": current_price_sol,
+                "value_sol": value_sol,
+                "pnl_sol": pnl_sol,
+                "pnl_percent": pnl_percent,
+                "balance_sol": float(balance_row["balance_sol"]),
+                "tx_hash": tx_hash,
+            }
 
 
 async def sync_address_balance(address: str) -> float | None:
