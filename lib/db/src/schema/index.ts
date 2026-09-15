@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, boolean, integer, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, boolean, integer, bigint, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -36,6 +36,7 @@ export type Wallet = typeof walletsTable.$inferSelect;
 export const positionsTable = pgTable("positions", {
   id: serial("id").primaryKey(),
   walletId: integer("wallet_id").notNull().references(() => walletsTable.id, { onDelete: "cascade" }),
+  telegramUserId: bigint("telegram_user_id", { mode: "number" }),
   tokenSymbol: text("token_symbol").notNull(),
   tokenName: text("token_name").notNull(),
   contractAddress: text("contract_address").notNull(),

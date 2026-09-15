@@ -311,6 +311,8 @@ async function executeBuy(ctx: Context, userId: number, ca: string) {
 
   const txHash = generateTxHash();
   const newBal = parseFloat((balance - cfg.buyAmount).toFixed(9));
+  const entryPriceSol = 0.000001;
+  const amountTokens = cfg.buyAmount / entryPriceSol;
 
   await Promise.all([
     updateWalletBalance(newBal),
@@ -330,9 +332,28 @@ async function executeBuy(ctx: Context, userId: number, ca: string) {
       tokenName: "Unknown Token",
       contractAddress: ca,
       amountSol: String(cfg.buyAmount),
-      priceSol: "0.000001",
+      amountTokens: String(amountTokens),
+      priceSol: String(entryPriceSol),
       txHash,
       status: "success",
+    }),
+    db.insert(positionsTable).values({
+      walletId: w.id,
+      telegramUserId: userId,
+      tokenSymbol: "UNKNOWN",
+      tokenName: "Unknown Token",
+      contractAddress: ca,
+      amountTokens: String(amountTokens),
+      valueSol: String(cfg.buyAmount),
+      entryPriceSol: String(entryPriceSol),
+      currentPriceSol: String(entryPriceSol),
+      pnlPercent: "0",
+      pnlSol: "0",
+      marketCapUsd: "0",
+      liquidityUsd: "0",
+      takeProfitPercent: String(cfg.takeProfitPct),
+      stopLossPercent: String(cfg.stopLossPct),
+      autoSell: cfg.autoSell,
     }),
   ]);
 
@@ -717,7 +738,8 @@ bot.on("callback_query:data", async (ctx) => {
   // ── Portfolio ─────────────────────────────────────────────────────────
 
   if (data === "portfolio") {
-    const positions = await db.select().from(positionsTable);
+    const positions = await db.select().from(positionsTable)
+      .where(eq(positionsTable.telegramUserId, userId));
     const balance   = await getWalletBalance();
     let text = `📊 *Portfolio*\n\nSOL Balance  \`${fSol(balance)} SOL\`\n\n`;
     if (!positions.length) {
@@ -1180,6 +1202,8 @@ function startPumpFunMonitor() {
             if (w) {
               const txHash = generateTxHash();
               const newBal = parseFloat((balance - cfg.buyAmount).toFixed(9));
+              const entryPriceSol = 0.000001;
+              const amountTokens = cfg.buyAmount / entryPriceSol;
               await Promise.all([
                 updateWalletBalance(newBal),
                 db.insert(snipersTable).values({
@@ -1198,9 +1222,28 @@ function startPumpFunMonitor() {
                   tokenName: coin.name,
                   contractAddress: coin.mint,
                   amountSol: String(cfg.buyAmount),
-                  priceSol: "0.000001",
+                  amountTokens: String(amountTokens),
+                  priceSol: String(entryPriceSol),
                   txHash,
                   status: "success",
+                }),
+                db.insert(positionsTable).values({
+                  walletId: w.id,
+                  telegramUserId: userId,
+                  tokenSymbol: coin.symbol,
+                  tokenName: coin.name,
+                  contractAddress: coin.mint,
+                  amountTokens: String(amountTokens),
+                  valueSol: String(cfg.buyAmount),
+                  entryPriceSol: String(entryPriceSol),
+                  currentPriceSol: String(entryPriceSol),
+                  pnlPercent: "0",
+                  pnlSol: "0",
+                  marketCapUsd: String(coin.market_cap || 0),
+                  liquidityUsd: "0",
+                  takeProfitPercent: String(cfg.takeProfitPct),
+                  stopLossPercent: String(cfg.stopLossPct),
+                  autoSell: cfg.autoSell,
                 }),
               ]);
               await bot.api.sendMessage(userId,
