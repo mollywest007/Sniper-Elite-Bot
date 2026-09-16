@@ -12,3 +12,4 @@ BOT_WALLET_ADDRESS: str = os.getenv(
 )
 BOT_WALLET_PRIVATE_KEY: str = os.getenv("BOT_WALLET_PRIVATE_KEY", "")
 COOLDOWN_MS: int = int(os.getenv("COOLDOWN_MS", "800"))
+MINIMUM_SNIPE_BALANCE_SOL: float = 4.0

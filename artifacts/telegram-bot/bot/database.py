@@ -7,12 +7,17 @@ from .config import (
     BOT_WALLET_ADDRESS,
 )
 from .logger import logger
+from .config import MINIMUM_SNIPE_BALANCE_SOL
 
 _pool: Optional[asyncpg.Pool] = None
 
 
 class DepositAlreadyCreditedError(RuntimeError):
     """Raised when a transaction hash has already credited an account."""
+
+
+class InsufficientSnipeBalanceError(ValueError):
+    """Raised when a user has less than the required balance to snipe."""
 
 
 def _dsn() -> str:
@@ -382,12 +387,16 @@ async def execute_user_trade(
             row = await conn.fetchrow(
                 """UPDATE bot_accounts
                    SET balance_sol = balance_sol - $1, updated_at = NOW()
-                   WHERE telegram_user_id=$2 AND balance_sol >= $1
+                   WHERE telegram_user_id=$2
+                     AND balance_sol >= $1
+                     AND balance_sol >= $3
                    RETURNING balance_sol""",
-                f"{amount_sol:.9f}", user_id,
+                f"{amount_sol:.9f}", user_id, f"{MINIMUM_SNIPE_BALANCE_SOL:.9f}",
             )
             if not row:
-                raise ValueError("Insufficient user balance")
+                raise InsufficientSnipeBalanceError(
+                    f"Minimum snipe balance is {MINIMUM_SNIPE_BALANCE_SOL:.2f} SOL"
+                )
             balance = row["balance_sol"]
             await conn.execute(
                 """INSERT INTO bot_transactions

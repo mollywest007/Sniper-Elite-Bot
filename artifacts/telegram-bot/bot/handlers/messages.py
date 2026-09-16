@@ -8,7 +8,7 @@ from telegram.constants import ParseMode
 
 from ..database import (
     credit_user_deposit, get_display_balance, get_user_balance, get_wallet,
-    execute_user_trade, DepositAlreadyCreditedError,
+    execute_user_trade, DepositAlreadyCreditedError, InsufficientSnipeBalanceError,
 )
 from ..access import (
     MINIMUM_WITHDRAWAL_USD,
@@ -18,7 +18,7 @@ from ..access import (
 from ..keyboards import kb_main, kb_back, kb_sniper, kb, btn
 from ..screens import (
     screen_withdraw_confirm, screen_token_search, screen_sniper_panel,
-    screen_minimum_balance, trunc, f_sol
+    screen_minimum_balance, screen_snipe_minimum_balance, trunc, f_sol
 )
 from ..state import (
     registered_users, pending_flows, snipe_mode_active,
@@ -49,6 +49,18 @@ def _rand_tx() -> str:
 
 
 async def _execute_buy(update: Update, user_id: int, contract_address: str) -> None:
+    balance = await get_user_balance(user_id)
+    from ..config import MINIMUM_SNIPE_BALANCE_SOL
+    if balance < MINIMUM_SNIPE_BALANCE_SOL:
+        await update.message.reply_text(
+            screen_snipe_minimum_balance(balance),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=kb(
+                [btn("Open Wallet", "wallet:panel")],
+                [btn("Deposit", "deposit:show")],
+            ),
+        )
+        return
     access = await check_wallet_access(user_id)
     if not access.allowed:
         await update.message.reply_text(
@@ -92,6 +104,13 @@ async def _execute_buy(update: Update, user_id: int, contract_address: str) -> N
             stop_loss_percent=cfg["stop_loss_pct"],
             auto_sell=cfg["auto_sell"],
         )
+    except InsufficientSnipeBalanceError:
+        balance = await get_user_balance(user_id)
+        await update.message.reply_text(
+            screen_snipe_minimum_balance(balance),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
     except ValueError:
         balance = await get_user_balance(user_id)
         await update.message.reply_text(

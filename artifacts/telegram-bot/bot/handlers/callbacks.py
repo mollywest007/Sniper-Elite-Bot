@@ -13,6 +13,7 @@ from ..database import (
     get_user_transactions, get_snipers, execute_user_trade, update_sniper_status,
     get_positions, get_copy_trades, get_limit_orders,
     get_wallet, mark_wallet_generated, debit_user_balance, get_wallet_valuation,
+    InsufficientSnipeBalanceError,
 )
 from ..access import (
     MINIMUM_WITHDRAWAL_USD,
@@ -26,7 +27,7 @@ from ..keyboards import (
 from ..screens import (
     screen_wallet, screen_wallet_generated, screen_deposit, screen_sniper_panel, screen_sniper_edit,
     screen_withdraw_confirm, screen_recent_wins, screen_minimum_balance,
-    trunc, f_sol, f_usd, f_pct,
+    screen_snipe_minimum_balance, trunc, f_sol, f_usd, f_pct,
 )
 from ..state import (
     registered_users, alert_subscribers, wallet_generated, snipe_mode_active,
@@ -121,6 +122,17 @@ def _rand_tx() -> str:
 
 
 async def _execute_buy(query, user_id: int, contract_address: str) -> None:
+    balance = await get_user_balance(user_id)
+    from ..config import MINIMUM_SNIPE_BALANCE_SOL
+    if balance < MINIMUM_SNIPE_BALANCE_SOL:
+        return await _edit(
+            query,
+            screen_snipe_minimum_balance(balance),
+            kb(
+                [btn("Open Wallet", "wallet:panel")],
+                [btn("Deposit", "deposit:show")],
+            ),
+        )
     access = await check_wallet_access(user_id)
     if not access.allowed:
         return await _edit(
@@ -159,6 +171,16 @@ async def _execute_buy(query, user_id: int, contract_address: str) -> None:
             take_profit_percent=cfg["take_profit_pct"],
             stop_loss_percent=cfg["stop_loss_pct"],
             auto_sell=cfg["auto_sell"],
+        )
+    except InsufficientSnipeBalanceError:
+        balance = await get_user_balance(user_id)
+        return await _edit(
+            query,
+            screen_snipe_minimum_balance(balance),
+            kb(
+                [btn("Open Wallet", "wallet:panel")],
+                [btn("Deposit", "deposit:show")],
+            ),
         )
     except ValueError:
         balance = await get_user_balance(user_id)

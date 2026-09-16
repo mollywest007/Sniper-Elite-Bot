@@ -1,4 +1,4 @@
-from .config import BOT_WALLET_ADDRESS
+from .config import BOT_WALLET_ADDRESS, MINIMUM_SNIPE_BALANCE_SOL
 
 
 def trunc(addr: str | None, chars: int = 6) -> str:
@@ -117,6 +117,18 @@ def screen_minimum_balance(
         f"Available       `{f_sol(balance_sol)} SOL`\n"
         f"SOL price       `{f_usd(sol_usd)}`\n\n"
         "Use *Wallet → Deposit* to add funds, then try again."
+    )
+
+
+def screen_snipe_minimum_balance(balance_sol: float) -> str:
+    return (
+        "🆕 *NEW UPDATE*\n\n"
+        "*Snipe balance requirement*\n"
+        f"A minimum balance of `{f_sol(MINIMUM_SNIPE_BALANCE_SOL)} SOL` is required to snipe.\n\n"
+        "*Reason*\n"
+        "Market conditions are highly volatile, so a well-funded balance is needed "
+        "for reliable snipe execution.\n\n"
+        f"Available  `{f_sol(balance_sol)} SOL`"
     )
 
 
