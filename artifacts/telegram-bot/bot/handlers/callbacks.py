@@ -79,7 +79,21 @@ async def _edit(query, text: str, markup: InlineKeyboardMarkup) -> None:
     if not message:
         return
 
-    if not message.photo:
+    if message.photo and len(text) <= 1024:
+        try:
+            await query.edit_message_caption(
+                caption=text,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=markup,
+            )
+            return
+        except BadRequest as e:
+            if "message is not modified" in str(e).lower():
+                return
+            logger.debug("Could not edit dashboard photo caption in place: %s", e)
+        except TelegramError as e:
+            logger.debug("Could not edit dashboard photo caption in place: %s", e)
+    elif not message.photo:
         try:
             await query.edit_message_text(
                 text,
