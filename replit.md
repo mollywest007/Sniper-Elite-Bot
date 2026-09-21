@@ -43,11 +43,13 @@ and commands. There is no website or browser dashboard.
 
 After a fresh import:
 
-1. Install the Python dependencies through the Telegram Bot workflow (`uv` does
-   this automatically).
-2. Ensure `DATABASE_URL` and `TELEGRAM_BOT_TOKEN` are set as Replit Secrets.
-3. Start the **Telegram Bot** workflow.
-4. Send `/start` to the bot in Telegram.
+1. Install the workspace dependencies with `pnpm install`.
+2. Apply the PostgreSQL schema with `pnpm --filter @workspace/db run push`.
+3. Ensure `DATABASE_URL` and `TELEGRAM_BOT_TOKEN` are set as Replit Secrets.
+   The Telegram Bot workflow installs the Python dependencies through `uv`
+   automatically.
+4. Start the **Telegram Bot** workflow.
+5. Send `/start` to the bot in Telegram.
 
 ## Architecture decisions
 
