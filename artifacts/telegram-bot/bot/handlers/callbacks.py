@@ -206,6 +206,11 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     query = update.callback_query
     if not query:
         return
+    logger.info(
+        "Callback received: user=%s data=%s",
+        getattr(update.effective_user, "id", "unknown"),
+        query.data or "<empty>",
+    )
     await query.answer()
 
     user = update.effective_user
@@ -761,3 +766,10 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     if data.startswith("snipe:quick:"):
         addr = data.split(":")[2]
         return await _execute_buy(query, user_id, addr)
+
+    logger.warning("Unhandled callback data: %s", data)
+    await _edit(
+        query,
+        "That menu action is no longer available. Please return to the main menu.",
+        kb_back("menu:home", "◀ Main Menu"),
+    )

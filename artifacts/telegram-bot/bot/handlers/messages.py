@@ -156,6 +156,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         return
     user_id = user.id
     raw = message.text.strip()
+    logger.info("Message received: user=%s text=%s", user_id, raw[:80])
     registered_users.add(user_id)
 
     if is_rate_limited(user_id):

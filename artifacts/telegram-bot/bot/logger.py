@@ -16,6 +16,11 @@ def setup_logger(name: str = "phase_snipe") -> logging.Logger:
     )
     handler.setFormatter(fmt)
     logger.addHandler(handler)
+    # python-telegram-bot uses its own logger hierarchy. Keep transport and
+    # polling failures visible in the workflow instead of silently falling
+    # back to the library's default logging configuration.
+    logging.getLogger("telegram").setLevel(logging.WARNING)
+    logging.getLogger("telegram.ext").setLevel(logging.WARNING)
     return logger
 
 
