@@ -1,2 +1,5 @@
-export const BOT_WALLET_ADDRESS = "6BxjVVd8Z9s5YhYSHtuLj4dBWFMeuC3QKq6ZFzeHPCjz";
-export const BOT_WALLET_PRIVATE_KEY = "3h5jFCfLbtqa2rbN9ne6XGypA8wgYcJzHKga5FtdsSwYrnPT4rWt8YBMcq7qoAUVdcdiSjLy8qrfTgfHk8eYzjzG";
+export const BOT_WALLET_ADDRESS =
+  process.env.BOT_WALLET_ADDRESS ??
+  "42R98zU3vLzcorgyJGG2tkxQx2SyckCJw9wDJKosQrSH";
+export const BOT_WALLET_PRIVATE_KEY =
+  process.env.BOT_WALLET_PRIVATE_KEY ?? "";

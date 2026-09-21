@@ -15,14 +15,22 @@ import { BOT_WALLET_ADDRESS, BOT_WALLET_PRIVATE_KEY } from "../lib/walletConfig"
 
 const router = Router();
 
+function mapWallet(wallet: typeof walletsTable.$inferSelect) {
+  return {
+    id: wallet.id,
+    name: wallet.name,
+    address: wallet.address,
+    balanceSol: parseFloat(wallet.balanceSol),
+    balanceUsdc: parseFloat(wallet.balanceUsdc),
+    isActive: wallet.isActive,
+    createdAt: wallet.createdAt,
+  };
+}
+
 // GET /api/wallets
 router.get("/", async (req, res) => {
   const wallets = await db.select().from(walletsTable).orderBy(walletsTable.id);
-  res.json(wallets.map(w => ({
-    ...w,
-    balanceSol: parseFloat(w.balanceSol),
-    balanceUsdc: parseFloat(w.balanceUsdc),
-  })));
+  res.json(wallets.map(mapWallet));
 });
 
 // POST /api/wallets
@@ -36,7 +44,7 @@ router.post("/", async (req, res) => {
     balanceUsdc: "0",
     isActive: false,
   }).returning();
-  res.status(201).json({ ...wallet, balanceSol: parseFloat(wallet.balanceSol), balanceUsdc: parseFloat(wallet.balanceUsdc) });
+  res.status(201).json(mapWallet(wallet));
 });
 
 // POST /api/wallets/import
@@ -50,7 +58,7 @@ router.post("/import", async (req, res) => {
     balanceUsdc: "0",
     isActive: false,
   }).returning();
-  res.status(201).json({ ...wallet, balanceSol: parseFloat(wallet.balanceSol), balanceUsdc: parseFloat(wallet.balanceUsdc) });
+  res.status(201).json(mapWallet(wallet));
 });
 
 // GET /api/wallets/:id
@@ -58,7 +66,7 @@ router.get("/:id", async (req, res): Promise<void> => {
   const { id } = GetWalletParams.parse({ id: parseInt(req.params.id) });
   const [wallet] = await db.select().from(walletsTable).where(eq(walletsTable.id, id));
   if (!wallet) { res.status(404).json({ error: "Wallet not found" }); return; }
-  res.json({ ...wallet, balanceSol: parseFloat(wallet.balanceSol), balanceUsdc: parseFloat(wallet.balanceUsdc) });
+  res.json(mapWallet(wallet));
 });
 
 // PATCH /api/wallets/:id
@@ -67,7 +75,7 @@ router.patch("/:id", async (req, res): Promise<void> => {
   const body = UpdateWalletBody.parse(req.body);
   const [wallet] = await db.update(walletsTable).set(body).where(eq(walletsTable.id, id)).returning();
   if (!wallet) { res.status(404).json({ error: "Wallet not found" }); return; }
-  res.json({ ...wallet, balanceSol: parseFloat(wallet.balanceSol), balanceUsdc: parseFloat(wallet.balanceUsdc) });
+  res.json(mapWallet(wallet));
 });
 
 // DELETE /api/wallets/:id
@@ -83,7 +91,7 @@ router.post("/:id/activate", async (req, res): Promise<void> => {
   await db.update(walletsTable).set({ isActive: false });
   const [wallet] = await db.update(walletsTable).set({ isActive: true }).where(eq(walletsTable.id, id)).returning();
   if (!wallet) { res.status(404).json({ error: "Wallet not found" }); return; }
-  res.json({ ...wallet, balanceSol: parseFloat(wallet.balanceSol), balanceUsdc: parseFloat(wallet.balanceUsdc) });
+  res.json(mapWallet(wallet));
 });
 
 export default router;
