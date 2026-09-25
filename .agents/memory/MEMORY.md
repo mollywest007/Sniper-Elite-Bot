@@ -7,3 +7,4 @@
 - [Recent wins refresh](recent-wins-refresh.md) — refresh must bypass the short cache and rotate across combined live Solana candidate feeds.
 - [Telegram screen navigation](telegram-screen-navigation.md) — callback screens should edit text messages in place; photo screens use replacement plus deletion.
 - [Telegram polling ownership](telegram-polling-ownership.md) — only one bot runtime may use the token; stale legacy deployments cause polling conflicts and inconsistent state.
+- [Telegram update filters](telegram-update-filters.md) — explicitly request callback updates when polling; Telegram can retain the prior webhook's allowed-update filter.
