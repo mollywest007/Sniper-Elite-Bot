@@ -1,4 +1,3 @@
-import asyncio
 import os
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -31,19 +30,13 @@ async def _send_welcome_with_banner(update: Update, text: str, reply_markup) -> 
         )
 
 
-async def _touch_user_in_background(user_id: int) -> None:
-    try:
-        await touch_bot_user(user_id)
-    except Exception as e:
-        logger.debug("Could not record Telegram user activity: %s", e)
-
-
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     if not user:
         return
     registered_users.add(user.id)
-    asyncio.create_task(_touch_user_in_background(user.id))
+    await touch_bot_user(user.id)
+    wallet_generated.add(user.id)
     valuation = await get_wallet_valuation(user.id)
     text = screen_welcome(valuation["total_value"])
     await _send_welcome_with_banner(update, text, kb_main(user.id))
@@ -57,6 +50,8 @@ async def cmd_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     registered_users.add(user.id)
     if is_rate_limited(user.id):
         return
+    await touch_bot_user(user.id)
+    wallet_generated.add(user.id)
     valuation = await get_wallet_valuation(user.id)
     await update.message.reply_text(
         screen_welcome(valuation["total_value"]),
@@ -74,6 +69,7 @@ async def cmd_wallet(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     registered_users.add(user.id)
     if is_rate_limited(user.id):
         return
+    await touch_bot_user(user.id)
     wallet_generated.add(user.id)
     valuation = await get_wallet_valuation(user.id)
     await update.message.reply_text(

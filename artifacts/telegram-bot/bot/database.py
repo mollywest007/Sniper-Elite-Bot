@@ -147,7 +147,11 @@ async def seed() -> None:
 async def load_wallet_generated_users() -> set[int]:
     async with pool().acquire() as conn:
         rows = await conn.fetch(
-            "SELECT telegram_id FROM bot_users WHERE wallet_generated = TRUE"
+            """SELECT telegram_id FROM bot_users WHERE wallet_generated = TRUE
+               UNION
+               SELECT telegram_user_id FROM bot_accounts
+               UNION
+               SELECT telegram_user_id FROM bot_transactions"""
         )
         return {int(r["telegram_id"]) for r in rows}
 
@@ -189,10 +193,10 @@ async def touch_bot_user(user_id: int) -> None:
     """Record that this user was active right now (for monthly user counting)."""
     async with pool().acquire() as conn:
         await conn.execute(
-            """INSERT INTO bot_users (telegram_id, last_seen_at)
-               VALUES ($1, NOW())
+            """INSERT INTO bot_users (telegram_id, wallet_generated, last_seen_at)
+               VALUES ($1, TRUE, NOW())
                ON CONFLICT (telegram_id)
-               DO UPDATE SET last_seen_at = NOW()""",
+               DO UPDATE SET wallet_generated = TRUE, last_seen_at = NOW()""",
             user_id,
         )
         wallet = await conn.fetchrow(

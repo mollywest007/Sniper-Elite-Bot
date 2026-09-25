@@ -25,7 +25,7 @@ from ..keyboards import (
     kb_alerts, btn, kb,
 )
 from ..screens import (
-    screen_wallet, screen_wallet_generated, screen_deposit, screen_sniper_panel, screen_sniper_edit,
+    screen_wallet, screen_deposit, screen_sniper_panel, screen_sniper_edit,
     screen_withdraw_confirm, screen_recent_wins, screen_minimum_balance,
     screen_snipe_minimum_balance, trunc, f_sol, f_usd, f_pct,
 )
@@ -272,13 +272,17 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     # ── Wallet ────────────────────────────────────────────────────────────
     if data == "wallet:show":
-        if user_id not in wallet_generated:
-            wallet_generated.add(user_id)
-            await mark_wallet_generated(user_id)
+        wallet_generated.add(user_id)
+        await mark_wallet_generated(user_id)
+        valuation = await get_wallet_valuation(user_id)
         return await _edit(
             query,
-            screen_wallet_generated(user_id),
-            kb([btn("Open Wallet", "wallet:panel")], [btn("◀ Main Menu", "menu:home")]),
+            screen_wallet(
+                valuation["cash_balance"],
+                valuation["positions_value"],
+                valuation["unrealized_pnl"],
+            ),
+            kb_wallet(),
         )
 
     if data == "wallet:panel":
