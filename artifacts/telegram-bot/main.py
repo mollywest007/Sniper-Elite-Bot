@@ -1,5 +1,5 @@
 import asyncio
-from telegram import BotCommand
+from telegram import BotCommand, Update
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -90,7 +90,10 @@ def main() -> None:
     jq.run_repeating(monitor_positions, interval=15, first=15)
 
     logger.info("Starting Phase Snipe bot...")
-    app.run_polling(drop_pending_updates=True)
+    app.run_polling(
+        allowed_updates=Update.ALL_TYPES,
+        drop_pending_updates=False,
+    )
 
 
 if __name__ == "__main__":
