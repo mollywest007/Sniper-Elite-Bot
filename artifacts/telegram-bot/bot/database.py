@@ -1,6 +1,7 @@
 import asyncio
 import asyncpg
 import secrets
+from decimal import Decimal, InvalidOperation, ROUND_DOWN, ROUND_HALF_UP
 from typing import Any, Optional
 from .config import (
     DATABASE_URL,
@@ -277,6 +278,40 @@ async def get_display_balance(user: Any, refresh: bool = False) -> float:
     if user_id is None:
         return 0.0
     return await get_user_balance(int(user_id))
+
+
+def normalise_withdrawal_amount(
+    requested: str | float | Decimal,
+    available: str | float | Decimal,
+) -> Decimal | None:
+    """Accept the displayed rounded maximum without allowing an overdraft.
+
+    Balances are stored to nine decimal places but displayed to four. A user
+    entering the displayed value can therefore be a few lamports above the
+    exact ledger amount. In that one rounding case, debit the exact available
+    amount instead of rejecting a valid full withdrawal.
+    """
+    try:
+        requested_dec = Decimal(str(requested))
+        available_dec = Decimal(str(available))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+
+    if requested_dec <= 0 or available_dec < 0:
+        return None
+
+    if requested_dec > available_dec:
+        displayed_requested = requested_dec.quantize(
+            Decimal("0.0001"), rounding=ROUND_HALF_UP
+        )
+        displayed_available = available_dec.quantize(
+            Decimal("0.0001"), rounding=ROUND_HALF_UP
+        )
+        if displayed_requested != displayed_available:
+            return None
+        requested_dec = available_dec
+
+    return requested_dec.quantize(Decimal("0.000000001"), rounding=ROUND_DOWN)
 
 
 async def _change_user_balance(

@@ -2,6 +2,7 @@ import asyncio
 import os
 import random
 import string
+from decimal import Decimal
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
@@ -13,7 +14,7 @@ from ..database import (
     get_user_transactions, get_snipers, execute_user_trade, update_sniper_status,
     get_positions, get_copy_trades, get_limit_orders,
     get_wallet, mark_wallet_generated, debit_user_balance, get_wallet_valuation,
-    InsufficientSnipeBalanceError,
+    InsufficientSnipeBalanceError, normalise_withdrawal_amount,
 )
 from ..access import (
     MINIMUM_WITHDRAWAL_USD,
@@ -363,8 +364,16 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
     if data.startswith("withdraw:confirm:"):
         parts = data.split(":")
         to_addr = parts[2]
-        amount = float(parts[3])
+        requested_amount = Decimal(parts[3])
         pending_flows.pop(user_id, None)
+        balance = await get_user_balance(user_id)
+        amount = normalise_withdrawal_amount(requested_amount, balance)
+        if amount is None:
+            return await _edit(
+                query,
+                f"*Insufficient balance*\n\nAvailable  `{f_sol(balance)} SOL`",
+                kb_back("wallet:panel", "◀ Wallet"),
+            )
         tx = _rand_tx()
         try:
             remaining_balance = await debit_user_balance(

@@ -9,6 +9,7 @@ from telegram.constants import ParseMode
 from ..database import (
     credit_user_deposit, get_display_balance, get_user_balance, get_wallet,
     execute_user_trade, DepositAlreadyCreditedError, InsufficientSnipeBalanceError,
+    normalise_withdrawal_amount,
 )
 from ..access import (
     MINIMUM_WITHDRAWAL_USD,
@@ -280,13 +281,15 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             )
             return
         balance = await get_display_balance(user)
-        if amount > balance:
+        safe_amount = normalise_withdrawal_amount(raw, balance)
+        if safe_amount is None:
             await message.reply_text(
                 f"Insufficient balance.\n\n"
                 f"Have  `{f_sol(balance)} SOL`  ·  Requested  `{f_sol(amount)} SOL`",
                 parse_mode=ParseMode.MARKDOWN,
             )
             return
+        amount = safe_amount
         to_address = flow["to_address"]
         pending_flows.pop(user_id, None)
         await message.reply_text(
