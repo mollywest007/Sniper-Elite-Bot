@@ -291,13 +291,17 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             return
         amount = safe_amount
         to_address = flow["to_address"]
-        pending_flows.pop(user_id, None)
+        pending_flows[user_id] = {
+            "type": "withdraw_confirm",
+            "to_address": to_address,
+            "amount": str(amount),
+        }
         await message.reply_text(
             screen_withdraw_confirm(to_address, amount),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("Confirm", callback_data=f"withdraw:confirm:{to_address}:{amount}"),
+                    InlineKeyboardButton("Confirm", callback_data="withdraw:confirm"),
                     InlineKeyboardButton("Cancel",  callback_data="withdraw:cancel"),
                 ]
             ]),

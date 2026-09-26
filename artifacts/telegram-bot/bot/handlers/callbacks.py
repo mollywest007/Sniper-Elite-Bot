@@ -226,7 +226,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     data: str = query.data or ""
 
-    if data in {"withdraw:start"} or data.startswith("withdraw:confirm:"):
+    if data in {"withdraw:start", "withdraw:confirm"} or data.startswith("withdraw:confirm:"):
         withdrawal_access = await check_withdrawal_access(user_id)
         if not withdrawal_access.allowed:
             return await _edit(
@@ -361,11 +361,23 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         from ..screens import screen_welcome
         return await _edit(query, screen_welcome(balance), kb_main(user_id))
 
-    if data.startswith("withdraw:confirm:"):
-        parts = data.split(":")
-        to_addr = parts[2]
-        requested_amount = Decimal(parts[3])
-        pending_flows.pop(user_id, None)
+    if data == "withdraw:confirm" or data.startswith("withdraw:confirm:"):
+        if data == "withdraw:confirm":
+            flow = pending_flows.get(user_id)
+            if not flow or flow.get("type") != "withdraw_confirm":
+                return await _edit(
+                    query,
+                    "This withdrawal confirmation has expired. Please start again.",
+                    kb_back("wallet:panel", "◀ Wallet"),
+                )
+            to_addr = flow["to_address"]
+            requested_amount = Decimal(flow["amount"])
+        else:
+            # Keep old callbacks readable if a previously sent short payload
+            # is still pressed, while new buttons use the compact form above.
+            parts = data.split(":")
+            to_addr = parts[2]
+            requested_amount = Decimal(parts[3])
         balance = await get_user_balance(user_id)
         amount = normalise_withdrawal_amount(requested_amount, balance)
         if amount is None:
@@ -374,6 +386,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
                 f"*Insufficient balance*\n\nAvailable  `{f_sol(balance)} SOL`",
                 kb_back("wallet:panel", "◀ Wallet"),
             )
+        pending_flows.pop(user_id, None)
         tx = _rand_tx()
         try:
             remaining_balance = await debit_user_balance(
