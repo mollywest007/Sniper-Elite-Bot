@@ -9,7 +9,7 @@ from telegram.constants import ParseMode
 from telegram.error import BadRequest, TelegramError
 
 from ..database import (
-    get_display_balance, get_user_balance, touch_bot_user,
+    credit_user_deposit, get_display_balance, get_user_balance, touch_bot_user,
     get_or_create_settings, update_settings,
     get_user_transactions, get_snipers, execute_user_trade, update_sniper_status,
     get_positions, get_copy_trades, get_limit_orders,
@@ -36,6 +36,7 @@ from ..state import (
     tracked_wallet_address,
 )
 from ..market import fetch_recent_solana_gainers
+from ..solana import WalletTransferError, send_sol_transfer
 from ..config import BOT_WALLET_ADDRESS
 from ..logger import logger
 
@@ -387,10 +388,10 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
                 kb_back("wallet:panel", "◀ Wallet"),
             )
         pending_flows.pop(user_id, None)
-        tx = _rand_tx()
+        ledger_tx = _rand_tx()
         try:
             remaining_balance = await debit_user_balance(
-                user_id, amount, "withdrawal", tx,
+                user_id, amount, "withdrawal", ledger_tx,
                 f"Withdrawal to {to_addr}",
             )
         except ValueError:
@@ -400,16 +401,39 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
                 f"*Insufficient balance*\n\nAvailable  `{f_sol(balance)} SOL`",
                 kb_back("wallet:panel", "◀ Wallet"),
             )
+        try:
+            tx = await send_sol_transfer(to_addr, amount)
+        except WalletTransferError as exc:
+            try:
+                await credit_user_deposit(
+                    user_id,
+                    amount,
+                    f"withdrawal-refund-{ledger_tx}",
+                    "Withdrawal submission failed; balance restored",
+                )
+            except Exception as refund_error:
+                logger.critical(
+                    "Could not restore failed withdrawal for user %s: %s",
+                    user_id,
+                    refund_error,
+                )
+            logger.error("Withdrawal failed for user %s: %s", user_id, exc)
+            return await _edit(
+                query,
+                "❌ *Withdrawal not submitted*\n\n"
+                "Your bot balance was restored because the transfer could not "
+                "be submitted. Please try again later.",
+                kb_back("wallet:panel", "◀ Wallet"),
+            )
         return await _edit(
             query,
             f"✅ *Withdrawal Requested*\n\n"
             f"Amount     `{f_sol(amount)} SOL`\n"
             f"To         `{trunc(to_addr, 10)}`\n"
             f"Remaining  `{f_sol(remaining_balance)} SOL`\n\n"
-            "Your money is on its way. It can take up to *20 minutes* "
-            "to arrive in the wallet you selected.\n\n"
-            "_The amount has been removed from your bot wallet and is now "
-            "being processed._",
+            f"TX         `{trunc(tx, 10)}`\n\n"
+            "Your money has been sent. It can take up to *20 minutes* "
+            "to arrive in the wallet you selected.",
             kb([btn("💼 Open Wallet", "wallet:panel")],
                [btn("◀️ Main Menu", "menu:home")]),
         )

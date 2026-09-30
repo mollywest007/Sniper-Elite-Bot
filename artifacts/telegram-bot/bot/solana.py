@@ -1,10 +1,25 @@
 import asyncio
+import json
+from decimal import Decimal, InvalidOperation, ROUND_DOWN
+
 import httpx
+from solana.rpc.async_api import AsyncClient
+from solana.rpc.models import TxOpts
+from solders.keypair import Keypair
+from solders.pubkey import Pubkey
+from solders.system_program import TransferParams, transfer
+from solders.transaction import Transaction
+
+from .config import BOT_WALLET_ADDRESS, BOT_WALLET_PRIVATE_KEY
 from .logger import logger
 
 SOLANA_RPC = "https://api.mainnet-beta.solana.com"
 LAMPORTS_PER_SOL = 1_000_000_000
 _client: httpx.AsyncClient | None = None
+
+
+class WalletTransferError(RuntimeError):
+    """Raised when a signed SOL transfer cannot be submitted."""
 
 
 def _http_client() -> httpx.AsyncClient:
@@ -156,3 +171,97 @@ async def fetch_deposit(
         if attempt < 2:
             await asyncio.sleep(1)
     return None
+
+
+def _load_signing_keypair() -> Keypair:
+    encoded = BOT_WALLET_PRIVATE_KEY.strip()
+    if not encoded:
+        raise WalletTransferError(
+            "The bot wallet signing key is not configured"
+        )
+
+    try:
+        if encoded.startswith("["):
+            values = json.loads(encoded)
+            keypair = Keypair.from_bytes(bytes(values))
+        else:
+            keypair = Keypair.from_base58_string(encoded)
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        raise WalletTransferError(
+            "The bot wallet signing key is invalid"
+        ) from exc
+
+    configured_pubkey = Pubkey.from_string(BOT_WALLET_ADDRESS)
+    if keypair.pubkey() != configured_pubkey:
+        raise WalletTransferError(
+            "The bot wallet signing key does not match the configured address"
+        )
+    return keypair
+
+
+async def send_sol_transfer(destination_address: str, amount_sol) -> str:
+    """Submit a signed SOL transfer and return its Solana signature."""
+    try:
+        destination = Pubkey.from_string(destination_address)
+        amount_dec = Decimal(str(amount_sol))
+    except (ValueError, TypeError, InvalidOperation) as exc:
+        raise WalletTransferError("Invalid withdrawal destination or amount") from exc
+
+    lamports = int(
+        (amount_dec * Decimal(LAMPORTS_PER_SOL)).to_integral_value(
+            rounding=ROUND_DOWN
+        )
+    )
+    if lamports <= 0:
+        raise WalletTransferError("Withdrawal amount is too small")
+
+    signer = _load_signing_keypair()
+    client = AsyncClient(SOLANA_RPC, commitment="confirmed")
+    try:
+        latest = await client.get_latest_blockhash(commitment="confirmed")
+        instruction = transfer(
+            TransferParams(
+                from_pubkey=signer.pubkey(),
+                to_pubkey=destination,
+                lamports=lamports,
+            )
+        )
+        transaction = Transaction.new_signed_with_payer(
+            [instruction],
+            signer.pubkey(),
+            [signer],
+            latest.value.blockhash,
+        )
+        response = await client.send_raw_transaction(
+            bytes(transaction),
+            opts=TxOpts(
+                skip_confirmation=True,
+                skip_preflight=False,
+                preflight_commitment="confirmed",
+                last_valid_block_height=latest.value.last_valid_block_height,
+            ),
+        )
+        signature = str(response.value)
+        if not signature:
+            raise WalletTransferError("Solana did not return a transaction signature")
+        logger.info(
+            "Submitted SOL withdrawal: destination=%s amount_lamports=%s signature=%s",
+            destination_address,
+            lamports,
+            signature,
+        )
+        return signature
+    except WalletTransferError:
+        raise
+    except Exception as exc:
+        logger.error(
+            "SOL withdrawal submission failed: destination=%s amount_lamports=%s error=%s",
+            destination_address,
+            lamports,
+            exc,
+        )
+        raise WalletTransferError(
+            "The Solana transfer could not be submitted"
+        ) from exc
+    finally:
+        await client.close()
