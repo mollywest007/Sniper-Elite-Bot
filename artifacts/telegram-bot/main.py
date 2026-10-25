@@ -15,6 +15,9 @@ from bot.handlers.messages import handle_message
 from bot.handlers.monitors import monitor_wallet, monitor_positions
 from bot.logger import logger
 
+BOT_ABOUT_TEXT = (
+    "The Fastest and Most Advanced On-Chain Trading Bot built to put you in full control."
+)
 BOT_PROFILE_DESCRIPTION = "Your Ultimate Onchain Trading Experience"
 
 
@@ -36,7 +39,7 @@ async def post_init(app: Application) -> None:
     persisted = await load_wallet_generated_users()
     wallet_generated.update(persisted)
     try:
-        await app.bot.set_my_short_description(BOT_PROFILE_DESCRIPTION)
+        await app.bot.set_my_short_description(BOT_ABOUT_TEXT)
     except Exception as e:
         logger.warning("Could not set short description: %s", e)
     try:
