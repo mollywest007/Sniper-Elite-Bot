@@ -29,8 +29,8 @@ export default function Dashboard() {
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-4xl font-black italic tracking-wider uppercase text-foreground">
-            Phase<span className="text-primary">Snipe</span>
+          <h1 className="text-4xl font-black tracking-wider uppercase text-foreground">
+            Command Center
           </h1>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -66,12 +66,9 @@ export default function Dashboard() {
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 blur-3xl -z-10 rounded-full" />
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 z-10 relative">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Zap className="h-6 w-6 text-primary fill-primary" />
-              <h1 className="text-3xl sm:text-4xl font-black italic tracking-widest text-foreground uppercase">
-                Phase<span className="text-primary">Snipe</span>
-              </h1>
-            </div>
+            <h1 className="text-3xl sm:text-4xl font-black tracking-widest text-foreground uppercase mb-2">
+              Command Center
+            </h1>
             <p className="text-primary font-bold text-sm tracking-widest uppercase">Lightning Fast Solana Terminal</p>
           </div>
           

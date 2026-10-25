@@ -1,5 +1,4 @@
 import asyncio
-import os
 import random
 import string
 from decimal import Decimal
@@ -41,27 +40,8 @@ from ..config import BOT_WALLET_ADDRESS
 from ..logger import logger
 
 
-_BANNER_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-    "assets",
-    "banner.png",
-)
-
-
 async def _send_replacement(message, text: str, markup: InlineKeyboardMarkup) -> None:
     """Send a new screen so Telegram does not mark the message as edited."""
-    if message.photo and len(text) <= 1024:
-        try:
-            await message.chat.send_photo(
-                photo=message.photo[-1].file_id,
-                caption=text,
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=markup,
-            )
-            return
-        except TelegramError as e:
-            logger.debug("Could not preserve banner on replacement: %s", e)
-
     try:
         await message.chat.send_message(
             text,

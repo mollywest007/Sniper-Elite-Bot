@@ -1,4 +1,3 @@
-import os
 from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
@@ -9,27 +8,6 @@ from ..screens import screen_welcome
 from ..state import registered_users, wallet_generated, is_rate_limited
 from ..logger import logger
 
-_BANNER_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "assets", "banner.png")
-
-
-async def _send_welcome_with_banner(update: Update, text: str, reply_markup) -> None:
-    try:
-        with open(_BANNER_PATH, "rb") as f:
-            await update.message.reply_photo(
-                f,
-                caption=text,
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=reply_markup,
-            )
-    except Exception as e:
-        logger.warning("Could not send banner, falling back to text: %s", e)
-        await update.message.reply_text(
-            text,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=reply_markup,
-        )
-
-
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     if not user:
@@ -39,7 +17,11 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     wallet_generated.add(user.id)
     valuation = await get_wallet_valuation(user.id)
     text = screen_welcome(valuation["total_value"])
-    await _send_welcome_with_banner(update, text, kb_main(user.id))
+    await update.message.reply_text(
+        text,
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=kb_main(user.id),
+    )
     logger.info("User %s started bot", user.id)
 
 

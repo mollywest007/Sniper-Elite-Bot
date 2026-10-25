@@ -66,13 +66,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden font-sans">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-[260px] border-r border-border glass-panel shrink-0 relative z-20">
-        <div className="p-6 border-b border-border flex items-center justify-between">
-          <div className="flex items-center gap-3 text-primary">
-            <div className="p-2 bg-primary/10 rounded-md border border-primary/30">
-              <Zap className="h-5 w-5 stroke-[2] fill-primary/20" />
-            </div>
-            <span className="font-bold  tracking-widest uppercase text-xl text-glow italic">Phase</span>
-          </div>
+        <div className="p-4 border-b border-border flex items-center justify-end">
           <Link
             href="/notifications"
             className="relative p-2 text-muted-foreground hover:text-primary transition-colors rounded-md hover:bg-primary/10"
@@ -128,12 +122,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <ChevronLeft className="h-4 w-4" />
               Return
             </button>
-          ) : (
-            <div className="md:hidden flex items-center gap-2 text-primary">
-              <Zap className="h-5 w-5 stroke-[2] fill-primary/20" />
-              <span className="font-bold  tracking-widest uppercase text-base text-glow italic">Phase</span>
-            </div>
-          )}
+          ) : null}
           <div className="flex-1" />
           <Link
             href="/notifications"
