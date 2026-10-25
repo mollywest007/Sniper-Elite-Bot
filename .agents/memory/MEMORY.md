@@ -2,6 +2,7 @@
 - [Python bot architecture](python-bot-architecture.md) — Python bot replaced Node.js grammY bot; uses python-telegram-bot 21.3 + asyncpg; modular layout under artifacts/telegram-bot/bot/.
 - [Post-import/re-clone setup steps](post-import-setup.md) — pnpm install, build api-server, db push, and TELEGRAM_BOT_TOKEN secret are all needed fresh after every import; none are in git.
 - [No-logo UI preference](telegram-bot-branding.md) — keep logos and banner imagery off web and Telegram screens, including deposit flows.
+- [Telegram bot profile description](telegram-bot-profile.md) — retain the user's exact description in both Telegram profile description fields.
 - [Shared wallet attribution](shared-wallet-ledger.md) — a shared Solana receiving address needs an exact Telegram memo before a deposit can be credited to one user's internal ledger.
 - [Token search data integrity](token-search-data-integrity.md) — CA searches must use a live market lookup and never display generated token metrics.
 - [Recent wins refresh](recent-wins-refresh.md) — refresh must bypass the short cache and rotate across combined live Solana candidate feeds.

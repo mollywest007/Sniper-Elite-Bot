@@ -15,6 +15,8 @@ from bot.handlers.messages import handle_message
 from bot.handlers.monitors import monitor_wallet, monitor_positions
 from bot.logger import logger
 
+BOT_PROFILE_DESCRIPTION = "Your Ultimate Onchain Trading Experience"
+
 
 async def on_error(update: object, context) -> None:
     """Keep polling alive and make handler failures visible in workflow logs."""
@@ -34,13 +36,13 @@ async def post_init(app: Application) -> None:
     persisted = await load_wallet_generated_users()
     wallet_generated.update(persisted)
     try:
-        await app.bot.set_my_short_description("")
+        await app.bot.set_my_short_description(BOT_PROFILE_DESCRIPTION)
     except Exception as e:
-        logger.warning("Could not clear short description: %s", e)
+        logger.warning("Could not set short description: %s", e)
     try:
-        await app.bot.set_my_description("")
+        await app.bot.set_my_description(BOT_PROFILE_DESCRIPTION)
     except Exception as e:
-        logger.warning("Could not clear description: %s", e)
+        logger.warning("Could not set bot description: %s", e)
     try:
         await app.bot.set_my_commands([
             BotCommand("start", "Open the sniper menu"),
