@@ -1,7 +1,13 @@
 ---
 name: Telegram screen navigation
-description: Navigation behavior for callback-driven Telegram screens.
+description: Navigation behavior for first-start onboarding and callback-driven Telegram screens.
 ---
+
+New users should see the main menu first on `/start`; do not automatically open the wallet. They can select Wallet when ready.
+
+**Why:** The user chose the main-menu-first onboarding behavior.
+
+**How to apply:** Keep wallet details behind the Wallet menu action while preserving the standard `/start` menu.
 
 Callback-driven text screens should edit the existing bot message in place and include a Back or Main Menu button. Screens built from photo messages should use replacement plus deletion because Telegram cannot edit their text content the same way.
 
