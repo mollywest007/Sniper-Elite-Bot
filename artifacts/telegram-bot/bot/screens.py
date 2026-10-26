@@ -159,7 +159,7 @@ def screen_snipe_minimum_balance(balance_sol: float) -> str:
 
 
 def screen_sniper_panel(cfg: dict) -> str:
-    status = "✅ Active — paste any CA to snipe" if cfg["sniping"] else "⏸ Idle"
+    status = "✅ Active — paste a CA to review and buy" if cfg["sniping"] else "⏸ Idle"
     return (
         "🎯 *Sniper Panel*\n\n"
         f"Status       {status}\n\n"

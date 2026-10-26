@@ -8,7 +8,18 @@ snipe_mode_active: set[int] = set()
 
 sniper_configs: dict[int, dict[str, Any]] = {}
 pending_flows: dict[int, dict[str, Any]] = {}
+active_screen_messages: dict[int, dict[str, int]] = {}
 cooldowns: dict[int, float] = {}
+
+
+def remember_active_screen(user_id: int, message: Any) -> None:
+    chat_id = getattr(message, "chat_id", None)
+    message_id = getattr(message, "message_id", None)
+    if isinstance(chat_id, int) and isinstance(message_id, int):
+        active_screen_messages[user_id] = {
+            "chat_id": chat_id,
+            "message_id": message_id,
+        }
 
 # wallet address each user wants to track for alerts (set via bot message)
 tracked_wallet_address: dict[int, str] = {}

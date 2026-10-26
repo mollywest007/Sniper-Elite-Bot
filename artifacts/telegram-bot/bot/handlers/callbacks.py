@@ -32,7 +32,7 @@ from ..screens import (
 from ..state import (
     registered_users, alert_subscribers, wallet_generated, snipe_mode_active,
     pending_flows, is_rate_limited, get_sniper_config,
-    tracked_wallet_address,
+    tracked_wallet_address, remember_active_screen,
 )
 from ..market import fetch_recent_solana_gainers
 from ..solana import WalletTransferError, send_sol_transfer
@@ -64,6 +64,9 @@ async def _edit(query, text: str, markup: InlineKeyboardMarkup):
 
     try:
         sent_message = await _send_replacement(message, text, markup)
+        user = getattr(query, "from_user", None)
+        if user:
+            remember_active_screen(user.id, sent_message)
         asyncio.create_task(_delete_replaced_message(message))
         return sent_message
     except TelegramError as e:
@@ -835,7 +838,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             "`/help`    This message\n\n"
             "*Quick Start*\n"
             "1. Open Sniper Panel — set your config\n"
-            "2. Paste any CA — bot buys instantly\n\n"
+            "2. Paste a CA — review the token and tap Buy Now\n\n"
             "*Commands*\n"
             "`/set buy_amount 0.5`\n"
             "`/set slippage 10`\n"

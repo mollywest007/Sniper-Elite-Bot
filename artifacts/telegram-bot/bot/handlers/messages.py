@@ -1,15 +1,13 @@
 import re
-import random
-import string
 from urllib.parse import urlparse
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
-from telegram.error import TelegramError
+from telegram.error import BadRequest, TelegramError
 
 from ..database import (
-    credit_user_deposit, get_display_balance, get_user_balance, get_wallet,
-    execute_user_trade, DepositAlreadyCreditedError, InsufficientSnipeBalanceError,
+    credit_user_deposit, get_display_balance,
+    DepositAlreadyCreditedError,
     normalise_withdrawal_amount,
 )
 from ..access import (
@@ -19,13 +17,14 @@ from ..access import (
 from ..keyboards import kb_main, kb_back, kb_sniper, kb_sniper_edit, kb, btn
 from ..screens import (
     screen_withdraw_confirm, screen_token_search, screen_sniper_panel,
-    screen_sniper_edit, screen_minimum_balance, screen_snipe_minimum_balance,
+    screen_sniper_edit, screen_minimum_balance,
     trunc, f_sol
 )
 from ..state import (
-    registered_users, pending_flows, snipe_mode_active,
+    registered_users, pending_flows,
     is_rate_limited, get_sniper_config, tracked_wallet_address,
-    alert_subscribers, wallet_generated,
+    alert_subscribers, wallet_generated, active_screen_messages,
+    remember_active_screen,
 )
 from ..logger import logger
 
@@ -40,11 +39,86 @@ _SNIPE_SETTING_FIELDS = {
 }
 
 
-async def _delete_setting_input(message) -> None:
+async def _delete_user_input(message) -> None:
     try:
         await message.delete()
     except TelegramError as exc:
-        logger.debug("Could not delete setting input message: %s", exc)
+        logger.debug("Could not delete user input message: %s", exc)
+
+
+async def _show_current_buy_panel(
+    ctx: ContextTypes.DEFAULT_TYPE,
+    message,
+    user_id: int,
+    text: str,
+    reply_markup: InlineKeyboardMarkup,
+) -> None:
+    panel = active_screen_messages.get(user_id)
+    if panel:
+        try:
+            await ctx.bot.edit_message_text(
+                chat_id=panel["chat_id"],
+                message_id=panel["message_id"],
+                text=text,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=reply_markup,
+                disable_web_page_preview=True,
+            )
+            return
+        except BadRequest as exc:
+            if "message is not modified" in str(exc).lower():
+                return
+            logger.debug("Could not update the current buy panel: %s", exc)
+        except TelegramError as exc:
+            logger.debug("Could not update the current buy panel: %s", exc)
+
+    sent = await ctx.bot.send_message(
+        chat_id=message.chat_id,
+        text=text,
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=reply_markup,
+        disable_web_page_preview=True,
+    )
+    remember_active_screen(user_id, sent)
+
+
+async def _show_token_buy_panel(
+    ctx: ContextTypes.DEFAULT_TYPE,
+    message,
+    user_id: int,
+    contract_address: str,
+) -> None:
+    await _delete_user_input(message)
+
+    from ..market import fetch_token_market
+    market = await fetch_token_market(contract_address)
+    if not market:
+        await _show_current_buy_panel(
+            ctx,
+            message,
+            user_id,
+            "No live Solana market pair was found for this CA. "
+            "Check the address and try again.",
+            kb(
+                [btn("Search Again", "search:token")],
+                [btn("◀️ Sniper Panel", "sniper:panel")],
+            ),
+        )
+        return
+
+    market = {**market, "address": market.get("address") or contract_address}
+    buy_amount = get_sniper_config(user_id)["buy_amount"]
+    await _show_current_buy_panel(
+        ctx,
+        message,
+        user_id,
+        screen_token_search(market),
+        kb(
+            [btn(f"Buy Now ({f_sol(buy_amount)} SOL)", f"sniper:buy:{contract_address}")],
+            [btn("Search Another Token", "search:token")],
+            [btn("◀️ Sniper Panel", "sniper:panel")],
+        ),
+    )
 
 
 async def _edit_setting_prompt(ctx, flow: dict, text: str, reply_markup) -> bool:
@@ -76,106 +150,6 @@ def _normalize_tx_hash(text: str) -> str | None:
     if candidate.startswith(("http://", "https://")):
         candidate = urlparse(candidate).path.rstrip("/").split("/")[-1]
     return candidate if _SOLANA_TX_RE.fullmatch(candidate) else None
-
-
-def _rand_tx() -> str:
-    return "".join(random.choices(string.ascii_letters + string.digits, k=64))
-
-
-async def _execute_buy(update: Update, user_id: int, contract_address: str) -> None:
-    balance = await get_user_balance(user_id)
-    from ..config import MINIMUM_SNIPE_BALANCE_SOL
-    if balance < MINIMUM_SNIPE_BALANCE_SOL:
-        await update.message.reply_text(
-            screen_snipe_minimum_balance(balance),
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=kb(
-                [btn("Open Wallet", "wallet:panel")],
-                [btn("Deposit", "deposit:show")],
-            ),
-        )
-        return
-    cfg = get_sniper_config(user_id)
-    tx = _rand_tx()
-    w = await get_wallet()
-    if not w:
-        await update.message.reply_text(
-            "The shared Solana wallet is not configured yet.",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        return
-    from ..market import fetch_token_market
-    market = await fetch_token_market(contract_address)
-    if not market:
-        await update.message.reply_text(
-            "Could not get a live market price for this token. "
-            "No funds were changed; please try again.",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        return
-    try:
-        await execute_user_trade(
-            user_id=user_id,
-            wallet_id=w["id"],
-            contract_address=contract_address,
-            amount_sol=cfg["buy_amount"],
-            slippage_percent=cfg["slippage"],
-            priority_fee=cfg["priority_fee"],
-            tx_hash=tx,
-            market=market,
-            take_profit_percent=cfg["take_profit_pct"],
-            stop_loss_percent=cfg["stop_loss_pct"],
-            auto_sell=cfg["auto_sell"],
-        )
-    except InsufficientSnipeBalanceError:
-        balance = await get_user_balance(user_id)
-        if balance >= MINIMUM_SNIPE_BALANCE_SOL:
-            await update.message.reply_text(
-                f"*Insufficient balance*\n\n"
-                f"Available  `{f_sol(balance)} SOL`\n"
-                f"Required   `{f_sol(cfg['buy_amount'])} SOL`",
-                parse_mode=ParseMode.MARKDOWN,
-            )
-            return
-        await update.message.reply_text(
-            screen_snipe_minimum_balance(balance),
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        return
-    except ValueError:
-        balance = await get_user_balance(user_id)
-        await update.message.reply_text(
-            f"*Insufficient balance*\n\n"
-            f"Available  `{f_sol(balance)} SOL`\n"
-            f"Required   `{f_sol(cfg['buy_amount'])} SOL`",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        return
-    except Exception as e:
-        logger.error("User trade error for %s: %s", user_id, e)
-        await update.message.reply_text(
-            "Could not record this trade. Your balance was not changed.",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-        return
-
-    text = (
-        f"*Snipe Executed*\n\n"
-        f"CA      `{trunc(contract_address, 8)}`\n"
-        f"Amount  `{f_sol(cfg['buy_amount'])} SOL`\n"
-        f"Slip    `{cfg['slippage']}%`\n"
-        f"TX      `{tx[:16]}...`\n\n"
-        "_Transaction submitted to Solana_"
-    )
-    await update.message.reply_text(
-        text,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=kb(
-            [InlineKeyboardButton("My Snipers", callback_data="sniper:list"),
-             InlineKeyboardButton("Portfolio",  callback_data="portfolio")],
-            [InlineKeyboardButton("◀ Sniper Panel", callback_data="sniper:panel")],
-        ),
-    )
 
 
 async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
@@ -354,27 +328,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
                 ),
             )
             return
-        from ..market import fetch_token_market
-        market = await fetch_token_market(raw)
-        if not market:
-            await message.reply_text(
-                "No live Solana market pair was found for this CA. "
-                "Check the address and try again.",
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=kb(
-                    [btn("Search Again", "search:token")],
-                    [btn("◀ Main Menu", "menu:home")],
-                ),
-            )
-            return
-        await message.reply_text(
-            screen_token_search(market),
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=kb(
-                [btn("Search Again", "search:token")],
-                [btn("◀ Main Menu", "menu:home")],
-            ),
-        )
+        await _show_token_buy_panel(ctx, message, user_id, raw)
         return
 
     # ── Snipe flow — CA from panel ─────────────────────────────────────────
@@ -383,7 +337,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         if not _is_valid_ca(raw):
             await message.reply_text("Invalid contract address.", parse_mode=ParseMode.MARKDOWN)
             return
-        await _execute_buy(update, user_id, raw)
+        await _show_token_buy_panel(ctx, message, user_id, raw)
         return
 
     # ── Sniper config flows ────────────────────────────────────────────────
@@ -405,7 +359,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
             ):
                 raise ValueError
         except (ValueError, TypeError):
-            await _delete_setting_input(message)
+            await _delete_user_input(message)
             error = (
                 "Invalid slippage. Use a value from 1 to 100."
                 if flow_type == "snipe_set_slippage"
@@ -424,7 +378,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
         cfg[field] = value
         pending_flows.pop(user_id, None)
-        await _delete_setting_input(message)
+        await _delete_user_input(message)
         if not await _edit_setting_prompt(
             ctx, flow, screen_sniper_edit(cfg), kb_sniper_edit(cfg)
         ):
@@ -459,21 +413,9 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         )
         return
 
-    # ── CA paste — auto buy if snipe mode active ───────────────────────────
+    # ── CA paste — show a confirmation panel before any buy ─────────────────
     if _is_valid_ca(raw):
-        if user_id in snipe_mode_active:
-            await _execute_buy(update, user_id, raw)
-        else:
-            await message.reply_text(
-                f"*Contract Address Detected*\n\n`{raw}`\n\n"
-                "Enable sniping in the Sniper Panel to auto-buy:",
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Sniper Panel", callback_data="sniper:panel")],
-                    [InlineKeyboardButton(f"Buy now ({f_sol(get_sniper_config(user_id)['buy_amount'])} SOL)",
-                                         callback_data=f"sniper:buy:{raw}")],
-                ]),
-            )
+        await _show_token_buy_panel(ctx, message, user_id, raw)
         return
 
     # ── Unknown text ───────────────────────────────────────────────────────
