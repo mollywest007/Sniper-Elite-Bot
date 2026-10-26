@@ -3,8 +3,8 @@ from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
 from ..database import get_wallet_valuation, get_or_create_settings, update_settings, touch_bot_user
-from ..keyboards import kb_main, kb_back
-from ..screens import screen_welcome
+from ..keyboards import kb_main, kb_back, kb_wallet, kb_wallet_setup
+from ..screens import screen_welcome, screen_wallet, screen_wallet_setup
 from ..state import registered_users, wallet_generated, is_rate_limited
 from ..logger import logger
 
@@ -14,9 +14,11 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         return
     registered_users.add(user.id)
     await touch_bot_user(user.id)
-    wallet_generated.add(user.id)
-    valuation = await get_wallet_valuation(user.id)
-    text = screen_welcome(valuation["total_value"])
+    wallet_value = None
+    if user.id in wallet_generated:
+        valuation = await get_wallet_valuation(user.id)
+        wallet_value = valuation["total_value"]
+    text = screen_welcome(wallet_value)
     await update.message.reply_text(
         text,
         parse_mode=ParseMode.MARKDOWN,
@@ -33,18 +35,18 @@ async def cmd_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if is_rate_limited(user.id):
         return
     await touch_bot_user(user.id)
-    wallet_generated.add(user.id)
-    valuation = await get_wallet_valuation(user.id)
+    wallet_value = None
+    if user.id in wallet_generated:
+        valuation = await get_wallet_valuation(user.id)
+        wallet_value = valuation["total_value"]
     await update.message.reply_text(
-        screen_welcome(valuation["total_value"]),
+        screen_welcome(wallet_value),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=kb_main(user.id),
     )
 
 
 async def cmd_wallet(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    from ..screens import screen_wallet
-    from ..keyboards import kb_wallet
     user = update.effective_user
     if not user:
         return
@@ -52,7 +54,13 @@ async def cmd_wallet(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if is_rate_limited(user.id):
         return
     await touch_bot_user(user.id)
-    wallet_generated.add(user.id)
+    if user.id not in wallet_generated:
+        await update.message.reply_text(
+            screen_wallet_setup(),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=kb_wallet_setup(),
+        )
+        return
     valuation = await get_wallet_valuation(user.id)
     await update.message.reply_text(
         screen_wallet(
@@ -74,7 +82,7 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     text = (
         "❓ *Help*\n\n"
         "`/start`   Main menu\n"
-        "`/wallet`  Wallet details\n"
+        "`/wallet`  Set up or view your wallet\n"
         "`/menu`    Return to menu\n"
         "`/help`    This message\n\n"
         "*Quick Start*\n"

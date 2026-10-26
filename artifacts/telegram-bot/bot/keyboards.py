@@ -11,7 +11,11 @@ def kb(*rows: list[InlineKeyboardButton]) -> InlineKeyboardMarkup:
 
 
 def kb_main(user_id: int | None = None) -> InlineKeyboardMarkup:
-    wallet_label = "💼 Wallet" if (user_id is not None and user_id in wallet_generated) else "💼 Set Up Wallet"
+    wallet_label = (
+        "💼 Wallet"
+        if (user_id is not None and user_id in wallet_generated)
+        else "💼 Generate Your Wallet"
+    )
     wallet_target = "wallet:panel" if (user_id is not None and user_id in wallet_generated) else "wallet:show"
     rows = [
         [btn(wallet_label, wallet_target),          btn("🔄 Refresh", "menu:refresh")],
@@ -47,6 +51,13 @@ def kb_wallet() -> InlineKeyboardMarkup:
         [btn("💳 Deposit", "deposit:show"),  btn("↗️ Withdraw", "withdraw:start")],
         [btn("🧾 TX History", "wallet:history"), btn("🔄 Refresh", "wallet:refresh")],
         [btn("◀️ Main Menu", "menu:home")],
+    )
+
+
+def kb_wallet_setup() -> InlineKeyboardMarkup:
+    return kb(
+        [btn("✅ Confirm & Set Up", "wallet:setup:confirm")],
+        [btn("◀️ Back to Menu", "wallet:setup:cancel")],
     )
 
 

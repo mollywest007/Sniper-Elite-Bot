@@ -43,7 +43,17 @@ def f_price(v) -> str:
         return "N/A"
 
 
-def screen_welcome(balance: float) -> str:
+def screen_welcome(balance: float | None) -> str:
+    wallet_status = (
+        f"Wallet Value   `{f_sol(balance)} SOL`"
+        if balance is not None
+        else "Wallet Setup   _Not completed_"
+    )
+    next_step = (
+        "Get started — tap *Wallet* below"
+        if balance is not None
+        else "Get started — tap *Generate Your Wallet* below"
+    )
     return (
         "*Main Menu*\n"
         "_Hyperspeed Solana Sniper Bot_\n\n"
@@ -52,8 +62,18 @@ def screen_welcome(balance: float) -> str:
         "Copy Trading System\n"
         "Real-Time Market Data\n"
         "Advanced Risk Management\n\n"
-        f"Wallet Value   `{f_sol(balance)} SOL`\n\n"
-        "Get started — tap *Wallet* below"
+        f"{wallet_status}\n\n"
+        f"{next_step}"
+    )
+
+
+def screen_wallet_setup() -> str:
+    return (
+        "💼 *Set Up Your Wallet*\n\n"
+        "This activates your Telegram account on the bot's shared Solana address. "
+        "Your balance and transaction history are tracked separately from other users.\n\n"
+        "This does not create a unique address or personal private key.\n\n"
+        "Would you like to continue?"
     )
 
 
@@ -70,18 +90,22 @@ def screen_wallet_generated(user_id: int | None = None) -> str:
 
 
 def screen_wallet(
-    balance: float, positions_value: float = 0, unrealized_pnl: float = 0
+    balance: float,
+    positions_value: float = 0,
+    unrealized_pnl: float = 0,
+    setup_complete: bool = False,
 ) -> str:
     total_value = balance + positions_value
     pnl_sign = "+" if unrealized_pnl >= 0 else ""
+    title = "✅ *Wallet Set Up*\n\n" if setup_complete else "*Wallet*\n\n"
     return (
-        "*Wallet*\n\n"
+        f"{title}"
         f"*Address*\n`{BOT_WALLET_ADDRESS}`\n\n"
         f"*Available SOL*  ·  `{f_sol(balance)} SOL`\n"
         f"*Token Holdings*  ·  `{f_sol(positions_value)} SOL`\n"
         f"*Unrealized P/L*  ·  `{pnl_sign}{f_sol(unrealized_pnl)} SOL`\n"
         f"*Total Wallet Value*  ·  `{f_sol(total_value)} SOL`\n\n"
-        "*Private key*  ·  configured and stored in bot\n\n"
+        "*Wallet model*  ·  shared address, separate user balance\n\n"
         "_Tap the address to copy it_"
     )
 

@@ -150,22 +150,36 @@ async def load_wallet_generated_users() -> set[int]:
         rows = await conn.fetch(
             """SELECT telegram_id FROM bot_users WHERE wallet_generated = TRUE
                UNION
-               SELECT telegram_user_id FROM bot_accounts
-               UNION
                SELECT telegram_user_id FROM bot_transactions"""
         )
         return {int(r["telegram_id"]) for r in rows}
 
 
-async def mark_wallet_generated(user_id: int) -> None:
+async def activate_wallet_account(user_id: int) -> None:
+    """Activate a Telegram user's ledger on the configured shared wallet."""
     async with pool().acquire() as conn:
-        await conn.execute(
-            """INSERT INTO bot_users (telegram_id, wallet_generated)
-               VALUES ($1, TRUE)
-               ON CONFLICT (telegram_id)
-               DO UPDATE SET wallet_generated = TRUE""",
-            user_id,
-        )
+        async with conn.transaction():
+            wallet = await conn.fetchrow(
+                "SELECT id, address FROM wallets WHERE address=$1",
+                BOT_WALLET_ADDRESS,
+            )
+            if not wallet:
+                raise RuntimeError("Shared bot wallet is not configured")
+            await conn.execute(
+                """INSERT INTO bot_users
+                       (telegram_id, wallet_generated, last_seen_at)
+                   VALUES ($1, TRUE, NOW())
+                   ON CONFLICT (telegram_id)
+                   DO UPDATE SET wallet_generated = TRUE, last_seen_at = NOW()""",
+                user_id,
+            )
+            await conn.execute(
+                """INSERT INTO bot_accounts
+                       (telegram_user_id, wallet_id, wallet_address)
+                   VALUES ($1, $2, $3)
+                   ON CONFLICT (telegram_user_id) DO NOTHING""",
+                user_id, wallet["id"], wallet["address"],
+            )
 
 
 async def ensure_bot_user(user_id: int) -> None:
@@ -194,23 +208,12 @@ async def touch_bot_user(user_id: int) -> None:
     """Record that this user was active right now (for monthly user counting)."""
     async with pool().acquire() as conn:
         await conn.execute(
-            """INSERT INTO bot_users (telegram_id, wallet_generated, last_seen_at)
-               VALUES ($1, TRUE, NOW())
+            """INSERT INTO bot_users (telegram_id, last_seen_at)
+               VALUES ($1, NOW())
                ON CONFLICT (telegram_id)
-               DO UPDATE SET wallet_generated = TRUE, last_seen_at = NOW()""",
+               DO UPDATE SET last_seen_at = NOW()""",
             user_id,
         )
-        wallet = await conn.fetchrow(
-            "SELECT id, address FROM wallets WHERE address=$1", BOT_WALLET_ADDRESS
-        )
-        if wallet:
-            await conn.execute(
-                """INSERT INTO bot_accounts
-                       (telegram_user_id, wallet_id, wallet_address)
-                   VALUES ($1, $2, $3)
-                   ON CONFLICT (telegram_user_id) DO NOTHING""",
-                user_id, wallet["id"], wallet["address"],
-            )
 
 
 async def get_monthly_user_count() -> int:

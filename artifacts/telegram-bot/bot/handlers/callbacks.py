@@ -12,7 +12,7 @@ from ..database import (
     get_or_create_settings, update_settings,
     get_user_transactions, get_snipers, execute_user_trade, update_sniper_status,
     get_positions, get_copy_trades, get_limit_orders,
-    get_wallet, mark_wallet_generated, debit_user_balance, get_wallet_valuation,
+    get_wallet, activate_wallet_account, debit_user_balance, get_wallet_valuation,
     InsufficientSnipeBalanceError, normalise_withdrawal_amount,
 )
 from ..access import (
@@ -21,11 +21,12 @@ from ..access import (
     check_withdrawal_access,
 )
 from ..keyboards import (
-    kb_main, kb_back, kb_sniper, kb_wallet, kb_deposit, kb_sniper_edit,
+    kb_main, kb_back, kb_sniper, kb_wallet, kb_wallet_setup, kb_deposit, kb_sniper_edit,
     kb_alerts, btn, kb,
 )
 from ..screens import (
-    screen_wallet, screen_deposit, screen_sniper_panel, screen_sniper_edit,
+    screen_welcome, screen_wallet, screen_wallet_setup, screen_deposit,
+    screen_sniper_panel, screen_sniper_edit,
     screen_withdraw_confirm, screen_recent_wins, screen_minimum_balance,
     screen_snipe_minimum_balance, trunc, f_sol, f_usd, f_pct,
 )
@@ -82,6 +83,34 @@ async def _touch_user_in_background(user_id: int) -> None:
         await touch_bot_user(user_id)
     except Exception as e:
         logger.debug("Could not record Telegram user activity: %s", e)
+
+
+async def _show_wallet_setup(query) -> None:
+    return await _edit(query, screen_wallet_setup(), kb_wallet_setup())
+
+
+async def _show_wallet_panel(
+    query, user_id: int, setup_complete: bool = False
+) -> None:
+    valuation = await get_wallet_valuation(user_id)
+    return await _edit(
+        query,
+        screen_wallet(
+            valuation["cash_balance"],
+            valuation["positions_value"],
+            valuation["unrealized_pnl"],
+            setup_complete=setup_complete,
+        ),
+        kb_wallet(),
+    )
+
+
+async def _show_main_menu(query, user_id: int) -> None:
+    wallet_value = None
+    if user_id in wallet_generated:
+        valuation = await get_wallet_valuation(user_id)
+        wallet_value = valuation["total_value"]
+    return await _edit(query, screen_welcome(wallet_value), kb_main(user_id))
 
 
 def _rand_tx() -> str:
@@ -207,6 +236,12 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     data: str = query.data or ""
 
+    if user_id not in wallet_generated and (
+        data in {"wallet:panel", "wallet:refresh", "wallet:history"}
+        or data.startswith(("deposit:", "withdraw:"))
+    ):
+        return await _show_wallet_setup(query)
+
     if data in {"withdraw:start", "withdraw:confirm"} or data.startswith("withdraw:confirm:"):
         withdrawal_access = await check_withdrawal_access(user_id)
         if not withdrawal_access.allowed:
@@ -223,14 +258,10 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     # ── Main Menu ─────────────────────────────────────────────────────────
     if data == "menu:home":
-        valuation = await get_wallet_valuation(user_id)
-        from ..screens import screen_welcome
-        return await _edit(query, screen_welcome(valuation["total_value"]), kb_main(user_id))
+        return await _show_main_menu(query, user_id)
 
     if data == "menu:refresh":
-        valuation = await get_wallet_valuation(user_id)
-        from ..screens import screen_welcome
-        return await _edit(query, screen_welcome(valuation["total_value"]), kb_main(user_id))
+        return await _show_main_menu(query, user_id)
 
     # ── Search Token ──────────────────────────────────────────────────────
     if data == "search:token":
@@ -254,42 +285,36 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     # ── Wallet ────────────────────────────────────────────────────────────
     if data == "wallet:show":
-        wallet_generated.add(user_id)
-        await mark_wallet_generated(user_id)
-        valuation = await get_wallet_valuation(user_id)
-        return await _edit(
-            query,
-            screen_wallet(
-                valuation["cash_balance"],
-                valuation["positions_value"],
-                valuation["unrealized_pnl"],
-            ),
-            kb_wallet(),
+        if user_id in wallet_generated:
+            return await _show_wallet_panel(query, user_id)
+        return await _show_wallet_setup(query)
+
+    if data == "wallet:setup:confirm":
+        setup_complete = user_id not in wallet_generated
+        if setup_complete:
+            try:
+                await activate_wallet_account(user_id)
+            except Exception:
+                logger.exception("Could not set up wallet for user %s", user_id)
+                return await _edit(
+                    query,
+                    "Wallet setup could not be completed. Please try again.",
+                    kb_wallet_setup(),
+                )
+            wallet_generated.add(user_id)
+        return await _show_wallet_panel(
+            query, user_id, setup_complete=setup_complete
         )
+
+    if data == "wallet:setup:cancel":
+        pending_flows.pop(user_id, None)
+        return await _show_main_menu(query, user_id)
 
     if data == "wallet:panel":
-        valuation = await get_wallet_valuation(user_id)
-        return await _edit(
-            query,
-            screen_wallet(
-                valuation["cash_balance"],
-                valuation["positions_value"],
-                valuation["unrealized_pnl"],
-            ),
-            kb_wallet(),
-        )
+        return await _show_wallet_panel(query, user_id)
 
     if data == "wallet:refresh":
-        valuation = await get_wallet_valuation(user_id)
-        return await _edit(
-            query,
-            screen_wallet(
-                valuation["cash_balance"],
-                valuation["positions_value"],
-                valuation["unrealized_pnl"],
-            ),
-            kb_wallet(),
-        )
+        return await _show_wallet_panel(query, user_id)
 
     if data == "wallet:history":
         trades = await get_user_transactions(user_id, 8)

@@ -24,7 +24,7 @@ from ..screens import (
 from ..state import (
     registered_users, pending_flows, snipe_mode_active,
     is_rate_limited, get_sniper_config, tracked_wallet_address,
-    alert_subscribers,
+    alert_subscribers, wallet_generated,
 )
 from ..logger import logger
 
@@ -464,7 +464,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         return
 
     # ── Unknown text ───────────────────────────────────────────────────────
-    balance = await get_display_balance(user)
+    balance = await get_display_balance(user) if user_id in wallet_generated else None
     from ..screens import screen_welcome
     await message.reply_text(
         screen_welcome(balance),
