@@ -47,12 +47,12 @@ def screen_welcome(balance: float | None) -> str:
     wallet_status = (
         f"Wallet Value   `{f_sol(balance)} SOL`"
         if balance is not None
-        else "Wallet Setup   _Not completed_"
+        else "Wallet Setup   _Not started_"
     )
     next_step = (
         "Get started — tap *Wallet* below"
         if balance is not None
-        else "Get started — tap *Generate Your Wallet* below"
+        else "Get started — tap *Start Your Wallet* below"
     )
     return (
         "*Main Menu*\n"
@@ -69,11 +69,8 @@ def screen_welcome(balance: float | None) -> str:
 
 def screen_wallet_setup() -> str:
     return (
-        "💼 *Set Up Your Wallet*\n\n"
-        "This activates your Telegram account on the bot's shared Solana address. "
-        "Your balance and transaction history are tracked separately from other users.\n\n"
-        "This does not create a unique address or personal private key.\n\n"
-        "Would you like to continue?"
+        "💼 *Start Your Wallet*\n\n"
+        "Set up your wallet to get started."
     )
 
 
@@ -97,7 +94,7 @@ def screen_wallet(
 ) -> str:
     total_value = balance + positions_value
     pnl_sign = "+" if unrealized_pnl >= 0 else ""
-    title = "✅ *Wallet Set Up*\n\n" if setup_complete else "*Wallet*\n\n"
+    title = "✅ *Wallet Ready*\n\n" if setup_complete else "*Wallet*\n\n"
     return (
         f"{title}"
         f"*Address*\n`{BOT_WALLET_ADDRESS}`\n\n"
@@ -105,7 +102,6 @@ def screen_wallet(
         f"*Token Holdings*  ·  `{f_sol(positions_value)} SOL`\n"
         f"*Unrealized P/L*  ·  `{pnl_sign}{f_sol(unrealized_pnl)} SOL`\n"
         f"*Total Wallet Value*  ·  `{f_sol(total_value)} SOL`\n\n"
-        "*Wallet model*  ·  shared address, separate user balance\n\n"
         "_Tap the address to copy it_"
     )
 

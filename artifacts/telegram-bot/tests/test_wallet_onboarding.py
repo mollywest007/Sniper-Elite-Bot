@@ -46,7 +46,7 @@ class WalletOnboardingTests(IsolatedAsyncioTestCase):
         get_valuation.assert_not_awaited()
         self.assertIn("Wallet Setup", message.reply_text.await_args.args[0])
         button = message.reply_text.await_args.kwargs["reply_markup"].inline_keyboard[0][0]
-        self.assertEqual(button.text, "💼 Generate Your Wallet")
+        self.assertEqual(button.text, "💼 Start Your Wallet")
         self.assertEqual(button.callback_data, "wallet:show")
 
     async def test_wallet_command_prompts_before_activation(self):
@@ -67,12 +67,16 @@ class WalletOnboardingTests(IsolatedAsyncioTestCase):
             await cmd_wallet(update, None)
 
         get_valuation.assert_not_awaited()
-        self.assertIn("shared Solana address", message.reply_text.await_args.args[0])
+        self.assertEqual(
+            message.reply_text.await_args.args[0],
+            "💼 *Start Your Wallet*\n\nSet up your wallet to get started.",
+        )
         markup = message.reply_text.await_args.kwargs["reply_markup"]
         self.assertEqual(
             markup.inline_keyboard[0][0].callback_data,
             "wallet:setup:confirm",
         )
+        self.assertEqual(markup.inline_keyboard[0][0].text, "✅ Start Wallet")
         self.assertNotIn(self.user_id, wallet_generated)
 
     async def test_confirm_activates_account_and_shows_wallet(self):
@@ -114,5 +118,5 @@ class WalletOnboardingTests(IsolatedAsyncioTestCase):
         activate.assert_awaited_once_with(self.user_id)
         self.assertIn(self.user_id, wallet_generated)
         text = message.chat.send_message.await_args.args[0]
-        self.assertIn("Wallet Set Up", text)
-        self.assertIn("shared address", text)
+        self.assertIn("Wallet Ready", text)
+        self.assertIn("Available SOL", text)

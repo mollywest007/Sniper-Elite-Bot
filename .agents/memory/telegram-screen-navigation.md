@@ -3,11 +3,11 @@ name: Telegram screen navigation
 description: Navigation behavior for first-start onboarding and callback-driven Telegram screens.
 ---
 
-New users should see the main menu first on `/start`. Selecting Generate Your Wallet opens a shared-address explanation and confirmation; activate their separate ledger only after confirmation.
+New users should see the main menu first on `/start`. Selecting Start Your Wallet opens a concise setup prompt; activate their separate ledger only after they tap Start Wallet.
 
 **Why:** The user chose main-menu-first onboarding and confirmed new accounts should use the existing shared address.
 
-**How to apply:** Do not mark a user wallet-ready on `/start`, ordinary menu use, or merely opening the wallet prompt. Persist readiness only when the user confirms setup.
+**How to apply:** Keep the wallet setup prompt simple and avoid technical explanations there. Do not mark a user wallet-ready on `/start`, ordinary menu use, or merely opening the prompt; persist readiness only after they tap Start Wallet.
 
 Callback-driven text screens should edit the existing bot message in place and include a Back or Main Menu button. Screens built from photo messages should use replacement plus deletion because Telegram cannot edit their text content the same way.
 
