@@ -5,26 +5,38 @@ from unittest.mock import AsyncMock, patch
 
 from bot.handlers.callbacks import handle_callback
 from bot.handlers.commands import cmd_start, cmd_wallet
+from bot.handlers.messages import handle_message
 from bot.keyboards import kb_main
-from bot.state import wallet_generated
+from bot.state import pending_flows, sniper_configs, wallet_generated
 
 
 class FakeMessage:
     def __init__(self):
         self.reply_text = AsyncMock()
         self.chat = SimpleNamespace(send_message=AsyncMock())
+        self.chat_id = 123
+        self.message_id = 456
+        self.edit_text = AsyncMock()
         self.delete = AsyncMock()
 
 
 class WalletOnboardingTests(IsolatedAsyncioTestCase):
     def setUp(self):
+        self.user_id = 912345
         self.previous_wallet_state = set(wallet_generated)
         wallet_generated.clear()
-        self.user_id = 912345
+        self.previous_pending_flow = pending_flows.pop(self.user_id, None)
+        self.previous_sniper_config = sniper_configs.pop(self.user_id, None)
 
     def tearDown(self):
         wallet_generated.clear()
         wallet_generated.update(self.previous_wallet_state)
+        pending_flows.pop(self.user_id, None)
+        if self.previous_pending_flow is not None:
+            pending_flows[self.user_id] = self.previous_pending_flow
+        sniper_configs.pop(self.user_id, None)
+        if self.previous_sniper_config is not None:
+            sniper_configs[self.user_id] = self.previous_sniper_config
 
     async def test_start_keeps_new_user_unset_up(self):
         message = FakeMessage()
@@ -159,3 +171,70 @@ class WalletOnboardingTests(IsolatedAsyncioTestCase):
         self.assertIn("Wallet Ready", text)
         self.assertIn("Bot private key", text)
         self.assertIn("stored in the bot", text)
+
+    async def test_setting_prompt_reuses_card_and_saves_its_message_id(self):
+        message = FakeMessage()
+        query = SimpleNamespace(
+            data="sniper:set:slippage",
+            answer=AsyncMock(),
+            message=message,
+        )
+        update = SimpleNamespace(
+            callback_query=query,
+            effective_user=SimpleNamespace(id=self.user_id),
+        )
+
+        with (
+            patch(
+                "bot.handlers.callbacks._touch_user_in_background",
+                new_callable=AsyncMock,
+            ),
+            patch("bot.handlers.callbacks.is_rate_limited", return_value=False),
+        ):
+            await handle_callback(update, None)
+            await asyncio.sleep(0)
+
+        message.edit_text.assert_awaited_once()
+        self.assertEqual(
+            pending_flows[self.user_id]["type"],
+            "snipe_set_slippage",
+        )
+        self.assertEqual(pending_flows[self.user_id]["chat_id"], message.chat_id)
+        self.assertEqual(
+            pending_flows[self.user_id]["prompt_message_id"],
+            message.message_id,
+        )
+
+    async def test_setting_text_is_deleted_and_settings_card_is_restored(self):
+        cases = (
+            ("snipe_set_slippage", "12", "12.0%"),
+            ("snipe_set_tp", "65", "65.0%"),
+            ("snipe_set_sl", "18", "18.0%"),
+        )
+        for flow_type, value, expected in cases:
+            with self.subTest(flow=flow_type):
+                pending_flows[self.user_id] = {
+                    "type": flow_type,
+                    "chat_id": 123,
+                    "prompt_message_id": 456,
+                }
+                message = FakeMessage()
+                message.text = value
+                update = SimpleNamespace(
+                    message=message,
+                    effective_user=SimpleNamespace(id=self.user_id),
+                )
+                bot = SimpleNamespace(edit_message_text=AsyncMock())
+                context = SimpleNamespace(bot=bot)
+
+                with patch(
+                    "bot.handlers.messages.is_rate_limited",
+                    return_value=False,
+                ):
+                    await handle_message(update, context)
+
+                message.delete.assert_awaited_once()
+                message.reply_text.assert_not_awaited()
+                bot.edit_message_text.assert_awaited_once()
+                self.assertIn(expected, bot.edit_message_text.await_args.kwargs["text"])
+                self.assertNotIn(self.user_id, pending_flows)

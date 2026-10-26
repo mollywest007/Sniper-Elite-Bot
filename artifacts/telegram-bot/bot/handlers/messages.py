@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
+from telegram.error import TelegramError
 
 from ..database import (
     credit_user_deposit, get_display_balance, get_user_balance, get_wallet,
@@ -16,10 +17,11 @@ from ..access import (
     check_wallet_access,
     check_withdrawal_access,
 )
-from ..keyboards import kb_main, kb_back, kb_sniper, kb, btn
+from ..keyboards import kb_main, kb_back, kb_sniper, kb_sniper_edit, kb, btn
 from ..screens import (
     screen_withdraw_confirm, screen_token_search, screen_sniper_panel,
-    screen_minimum_balance, screen_snipe_minimum_balance, trunc, f_sol
+    screen_sniper_edit, screen_minimum_balance, screen_snipe_minimum_balance,
+    trunc, f_sol
 )
 from ..state import (
     registered_users, pending_flows, snipe_mode_active,
@@ -31,6 +33,38 @@ from ..logger import logger
 
 _SOLANA_ADDR_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$")
 _SOLANA_TX_RE = re.compile(r"^[1-9A-HJ-NP-Za-km-z]{64,128}$")
+_SNIPE_SETTING_FIELDS = {
+    "snipe_set_amount": "buy_amount",
+    "snipe_set_slippage": "slippage",
+    "snipe_set_tp": "take_profit_pct",
+    "snipe_set_sl": "stop_loss_pct",
+}
+
+
+async def _delete_setting_input(message) -> None:
+    try:
+        await message.delete()
+    except TelegramError as exc:
+        logger.debug("Could not delete setting input message: %s", exc)
+
+
+async def _edit_setting_prompt(ctx, flow: dict, text: str, reply_markup) -> bool:
+    chat_id = flow.get("chat_id")
+    prompt_message_id = flow.get("prompt_message_id")
+    if chat_id is None or prompt_message_id is None:
+        return False
+    try:
+        await ctx.bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=prompt_message_id,
+            text=text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=reply_markup,
+        )
+        return True
+    except TelegramError as exc:
+        logger.debug("Could not restore sniper settings card in place: %s", exc)
+        return False
 
 
 def _is_valid_ca(text: str) -> bool:
@@ -357,69 +391,52 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         return
 
     # ── Sniper config flows ────────────────────────────────────────────────
-    if flow and flow["type"] == "snipe_set_amount":
-        pending_flows.pop(user_id, None)
+    if flow and flow["type"] in _SNIPE_SETTING_FIELDS:
+        flow_type = flow["type"]
+        field = _SNIPE_SETTING_FIELDS[flow_type]
+        cfg = get_sniper_config(user_id)
+        examples = {
+            "snipe_set_amount": ("buy amount in SOL", "`0.5`"),
+            "snipe_set_slippage": ("slippage percent (1–100)", "`10`"),
+            "snipe_set_tp": ("take-profit percent", "`50`"),
+            "snipe_set_sl": ("stop-loss percent", "`20`"),
+        }
+        label, example = examples[flow_type]
         try:
-            v = float(raw)
-            if v <= 0:
+            value = float(raw)
+            if value <= 0 or (
+                flow_type == "snipe_set_slippage" and value > 100
+            ):
                 raise ValueError
-            get_sniper_config(user_id)["buy_amount"] = v
-            cfg = get_sniper_config(user_id)
-            from ..keyboards import kb_sniper_edit
-            from ..screens import screen_sniper_edit
-            await message.reply_text(
-                f"Buy amount set to `{v:.4f} SOL`",
-                parse_mode=ParseMode.MARKDOWN,
+        except (ValueError, TypeError):
+            await _delete_setting_input(message)
+            error = (
+                "Invalid slippage. Use a value from 1 to 100."
+                if flow_type == "snipe_set_slippage"
+                else f"Invalid value. Enter a positive {label}."
             )
+            prompt = f"⚠️ {error}\n\nEnter new {label} (e.g. {example}):"
+            if not await _edit_setting_prompt(
+                ctx, flow, prompt, kb_back("sniper:edit", "Cancel")
+            ):
+                await message.reply_text(
+                    prompt,
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=kb_back("sniper:edit", "Cancel"),
+                )
+            return
+
+        cfg[field] = value
+        pending_flows.pop(user_id, None)
+        await _delete_setting_input(message)
+        if not await _edit_setting_prompt(
+            ctx, flow, screen_sniper_edit(cfg), kb_sniper_edit(cfg)
+        ):
             await message.reply_text(
                 screen_sniper_edit(cfg),
                 parse_mode=ParseMode.MARKDOWN,
                 reply_markup=kb_sniper_edit(cfg),
             )
-        except (ValueError, TypeError):
-            await message.reply_text("Invalid amount. Enter a positive number (e.g. `0.5`).", parse_mode=ParseMode.MARKDOWN)
-        return
-
-    if flow and flow["type"] == "snipe_set_slippage":
-        pending_flows.pop(user_id, None)
-        try:
-            v = float(raw)
-            if v <= 0 or v > 100:
-                raise ValueError
-            get_sniper_config(user_id)["slippage"] = v
-            await message.reply_text(f"Slippage set to `{v:.1f}%`", parse_mode=ParseMode.MARKDOWN)
-        except (ValueError, TypeError):
-            await message.reply_text("Invalid slippage. Enter a value between 1–100 (e.g. `10`).", parse_mode=ParseMode.MARKDOWN)
-        return
-
-    if flow and flow["type"] == "snipe_set_tp":
-        pending_flows.pop(user_id, None)
-        try:
-            v = float(raw)
-            if v <= 0:
-                raise ValueError
-            get_sniper_config(user_id)["take_profit_pct"] = v
-            cfg = get_sniper_config(user_id)
-            await message.reply_text(
-                f"Take profit set to `+{v:.1f}%`.\n\n"
-                + screen_sniper_panel(cfg),
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=kb_sniper(cfg),
-            )
-        except (ValueError, TypeError):
-            await message.reply_text("Invalid value.", parse_mode=ParseMode.MARKDOWN)
-        return
-
-    if flow and flow["type"] == "snipe_set_sl":
-        pending_flows.pop(user_id, None)
-        try:
-            v = float(raw)
-            if v <= 0:
-                raise ValueError
-            get_sniper_config(user_id)["stop_loss_pct"] = v
-            await message.reply_text(f"Stop loss set to `-{v:.1f}%`", parse_mode=ParseMode.MARKDOWN)
-        except (ValueError, TypeError):
-            await message.reply_text("Invalid value.", parse_mode=ParseMode.MARKDOWN)
         return
 
     # ── Set tracked wallet for alerts ─────────────────────────────────────

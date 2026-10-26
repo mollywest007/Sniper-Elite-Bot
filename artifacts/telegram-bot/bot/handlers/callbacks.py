@@ -41,32 +41,52 @@ from ..config import BOT_WALLET_ADDRESS
 from ..logger import logger
 
 
-async def _send_replacement(message, text: str, markup: InlineKeyboardMarkup) -> None:
+async def _send_replacement(message, text: str, markup: InlineKeyboardMarkup):
     """Send a new screen so Telegram does not mark the message as edited."""
     try:
-        await message.chat.send_message(
+        sent_message = await message.chat.send_message(
             text,
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=markup,
         )
+        return sent_message
     except BadRequest as e:
         # A malformed or stale Markdown fragment should not leave the user
         # without a screen. Telegram's plain-text fallback is still useful.
         logger.debug("Could not send formatted replacement: %s", e)
-        await message.chat.send_message(text, reply_markup=markup)
+        return await message.chat.send_message(text, reply_markup=markup)
 
 
-async def _edit(query, text: str, markup: InlineKeyboardMarkup) -> None:
+async def _edit(query, text: str, markup: InlineKeyboardMarkup):
     """Replace the current screen without Telegram marking it as edited."""
     message = query.message
     if not message:
         return
 
     try:
-        await _send_replacement(message, text, markup)
+        sent_message = await _send_replacement(message, text, markup)
         asyncio.create_task(_delete_replaced_message(message))
+        return sent_message
     except TelegramError as e:
         logger.warning("Could not send Telegram screen replacement: %s", e)
+
+
+async def _edit_in_place(query, text: str, markup: InlineKeyboardMarkup):
+    """Edit a transient setting prompt in place instead of adding another card."""
+    message = query.message
+    if not message:
+        return None
+
+    try:
+        await message.edit_text(
+            text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=markup,
+        )
+        return message
+    except TelegramError as e:
+        logger.debug("Could not edit setting prompt in place: %s", e)
+        return await _edit(query, text, markup)
 
 
 async def _delete_replaced_message(message) -> None:
@@ -563,12 +583,17 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         }
         if field not in labels:
             return
-        pending_flows[user_id] = {"type": flow_map[field]}
-        return await _edit(
+        prompt_message = await _edit_in_place(
             query,
             f"*Edit Setting*\n\nEnter new {labels[field]}:",
             kb_back("sniper:edit", "Cancel"),
         )
+        flow = {"type": flow_map[field]}
+        if prompt_message:
+            flow["chat_id"] = prompt_message.chat_id
+            flow["prompt_message_id"] = prompt_message.message_id
+        pending_flows[user_id] = flow
+        return
 
     if data.startswith("sniper:fee:"):
         fee = data.split(":")[2]
