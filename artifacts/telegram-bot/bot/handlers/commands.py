@@ -67,6 +67,7 @@ async def cmd_wallet(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
             valuation["cash_balance"],
             valuation["positions_value"],
             valuation["unrealized_pnl"],
+            wallet_ready=True,
         ),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=kb_wallet(),

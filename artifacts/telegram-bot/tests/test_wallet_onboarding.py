@@ -122,3 +122,40 @@ class WalletOnboardingTests(IsolatedAsyncioTestCase):
         self.assertIn("Bot private key", text)
         self.assertIn("stored in the bot", text)
         self.assertIn("Available SOL", text)
+
+    async def test_reopening_wallet_keeps_bot_key_note_visible(self):
+        wallet_generated.add(self.user_id)
+        message = FakeMessage()
+        query = SimpleNamespace(
+            data="wallet:show",
+            answer=AsyncMock(),
+            message=message,
+        )
+        update = SimpleNamespace(
+            callback_query=query,
+            effective_user=SimpleNamespace(id=self.user_id),
+        )
+        valuation = {
+            "cash_balance": 0.0,
+            "positions_value": 0.0,
+            "unrealized_pnl": 0.0,
+        }
+
+        with (
+            patch(
+                "bot.handlers.callbacks._touch_user_in_background",
+                new_callable=AsyncMock,
+            ),
+            patch("bot.handlers.callbacks.is_rate_limited", return_value=False),
+            patch(
+                "bot.handlers.callbacks.get_wallet_valuation",
+                new_callable=AsyncMock,
+                return_value=valuation,
+            ),
+        ):
+            await handle_callback(update, None)
+
+        text = message.chat.send_message.await_args.args[0]
+        self.assertIn("Wallet Ready", text)
+        self.assertIn("Bot private key", text)
+        self.assertIn("stored in the bot", text)

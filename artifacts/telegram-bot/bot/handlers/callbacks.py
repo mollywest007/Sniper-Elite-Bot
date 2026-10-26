@@ -89,9 +89,7 @@ async def _show_wallet_setup(query) -> None:
     return await _edit(query, screen_wallet_setup(), kb_wallet_setup())
 
 
-async def _show_wallet_panel(
-    query, user_id: int, setup_complete: bool = False
-) -> None:
+async def _show_wallet_panel(query, user_id: int) -> None:
     valuation = await get_wallet_valuation(user_id)
     return await _edit(
         query,
@@ -99,7 +97,7 @@ async def _show_wallet_panel(
             valuation["cash_balance"],
             valuation["positions_value"],
             valuation["unrealized_pnl"],
-            setup_complete=setup_complete,
+            wallet_ready=True,
         ),
         kb_wallet(),
     )
@@ -290,8 +288,8 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return await _show_wallet_setup(query)
 
     if data == "wallet:setup:confirm":
-        setup_complete = user_id not in wallet_generated
-        if setup_complete:
+        needs_activation = user_id not in wallet_generated
+        if needs_activation:
             try:
                 await activate_wallet_account(user_id)
             except Exception:
@@ -302,9 +300,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
                     kb_wallet_setup(),
                 )
             wallet_generated.add(user_id)
-        return await _show_wallet_panel(
-            query, user_id, setup_complete=setup_complete
-        )
+        return await _show_wallet_panel(query, user_id)
 
     if data == "wallet:setup:cancel":
         pending_flows.pop(user_id, None)

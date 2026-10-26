@@ -90,14 +90,14 @@ def screen_wallet(
     balance: float,
     positions_value: float = 0,
     unrealized_pnl: float = 0,
-    setup_complete: bool = False,
+    wallet_ready: bool = False,
 ) -> str:
     total_value = balance + positions_value
     pnl_sign = "+" if unrealized_pnl >= 0 else ""
-    title = "✅ *Wallet Ready*\n\n" if setup_complete else "*Wallet*\n\n"
+    title = "✅ *Wallet Ready*\n\n" if wallet_ready else "*Wallet*\n\n"
     key_status = (
         "🔐 *Bot private key* · stored in the bot\n\n"
-        if setup_complete
+        if wallet_ready
         else ""
     )
     return (
