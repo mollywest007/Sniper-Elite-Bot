@@ -17,7 +17,6 @@ from ..database import (
 )
 from ..access import (
     MINIMUM_WITHDRAWAL_USD,
-    check_wallet_access,
     check_withdrawal_access,
 )
 from ..keyboards import (
@@ -147,13 +146,6 @@ async def _execute_buy(query, user_id: int, contract_address: str) -> None:
                 [btn("Deposit", "deposit:show")],
             ),
         )
-    access = await check_wallet_access(user_id)
-    if not access.allowed:
-        return await _edit(
-            query,
-            screen_minimum_balance(access.balance_sol, access.sol_usd),
-            kb_back("wallet:panel", "Open Wallet"),
-        )
     cfg = get_sniper_config(user_id)
     tx = _rand_tx()
     w = await get_wallet()
@@ -188,13 +180,21 @@ async def _execute_buy(query, user_id: int, contract_address: str) -> None:
         )
     except InsufficientSnipeBalanceError:
         balance = await get_user_balance(user_id)
+        if balance < MINIMUM_SNIPE_BALANCE_SOL:
+            return await _edit(
+                query,
+                screen_snipe_minimum_balance(balance),
+                kb(
+                    [btn("Open Wallet", "wallet:panel")],
+                    [btn("Deposit", "deposit:show")],
+                ),
+            )
         return await _edit(
             query,
-            screen_snipe_minimum_balance(balance),
-            kb(
-                [btn("Open Wallet", "wallet:panel")],
-                [btn("Deposit", "deposit:show")],
-            ),
+            f"*Insufficient balance*\n\n"
+            f"Available  `{f_sol(balance)} SOL`\n"
+            f"Required   `{f_sol(cfg['buy_amount'])} SOL`",
+            kb_back("sniper:panel", "◀ Sniper Panel"),
         )
     except ValueError:
         balance = await get_user_balance(user_id)

@@ -14,7 +14,6 @@ from ..database import (
 )
 from ..access import (
     MINIMUM_WITHDRAWAL_USD,
-    check_wallet_access,
     check_withdrawal_access,
 )
 from ..keyboards import kb_main, kb_back, kb_sniper, kb_sniper_edit, kb, btn
@@ -96,17 +95,6 @@ async def _execute_buy(update: Update, user_id: int, contract_address: str) -> N
             ),
         )
         return
-    access = await check_wallet_access(user_id)
-    if not access.allowed:
-        await update.message.reply_text(
-            screen_minimum_balance(access.balance_sol, access.sol_usd),
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=kb(
-                [btn("Open Wallet", "wallet:panel")],
-                [btn("Deposit", "deposit:show")],
-            ),
-        )
-        return
     cfg = get_sniper_config(user_id)
     tx = _rand_tx()
     w = await get_wallet()
@@ -141,6 +129,14 @@ async def _execute_buy(update: Update, user_id: int, contract_address: str) -> N
         )
     except InsufficientSnipeBalanceError:
         balance = await get_user_balance(user_id)
+        if balance >= MINIMUM_SNIPE_BALANCE_SOL:
+            await update.message.reply_text(
+                f"*Insufficient balance*\n\n"
+                f"Available  `{f_sol(balance)} SOL`\n"
+                f"Required   `{f_sol(cfg['buy_amount'])} SOL`",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
         await update.message.reply_text(
             screen_snipe_minimum_balance(balance),
             parse_mode=ParseMode.MARKDOWN,
