@@ -240,7 +240,18 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         getattr(update.effective_user, "id", "unknown"),
         query.data or "<empty>",
     )
-    await query.answer()
+    try:
+        await query.answer()
+    except BadRequest as e:
+        error = str(e).lower()
+        if "query is too old" in error or "query id is invalid" in error:
+            logger.info(
+                "Ignoring expired Telegram callback: user=%s data=%s",
+                getattr(update.effective_user, "id", "unknown"),
+                query.data or "<empty>",
+            )
+            return
+        raise
 
     user = update.effective_user
     if not user:
