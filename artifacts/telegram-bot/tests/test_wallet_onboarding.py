@@ -119,4 +119,6 @@ class WalletOnboardingTests(IsolatedAsyncioTestCase):
         self.assertIn(self.user_id, wallet_generated)
         text = message.chat.send_message.await_args.args[0]
         self.assertIn("Wallet Ready", text)
+        self.assertIn("Bot private key", text)
+        self.assertIn("stored in the bot", text)
         self.assertIn("Available SOL", text)

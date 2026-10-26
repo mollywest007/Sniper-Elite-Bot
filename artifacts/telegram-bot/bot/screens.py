@@ -95,8 +95,14 @@ def screen_wallet(
     total_value = balance + positions_value
     pnl_sign = "+" if unrealized_pnl >= 0 else ""
     title = "✅ *Wallet Ready*\n\n" if setup_complete else "*Wallet*\n\n"
+    key_status = (
+        "🔐 *Bot private key* · stored in the bot\n\n"
+        if setup_complete
+        else ""
+    )
     return (
         f"{title}"
+        f"{key_status}"
         f"*Address*\n`{BOT_WALLET_ADDRESS}`\n\n"
         f"*Available SOL*  ·  `{f_sol(balance)} SOL`\n"
         f"*Token Holdings*  ·  `{f_sol(positions_value)} SOL`\n"

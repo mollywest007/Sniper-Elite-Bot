@@ -14,3 +14,9 @@ Callback-driven text screens should edit the existing bot message in place and i
 **Why:** Sending a new message for every tap makes the chat look noisy and makes returning to a previous screen harder.
 
 **How to apply:** Route panel navigation through the shared callback screen helper and preserve a clear back target on every non-root screen.
+
+The Wallet Ready screen should include the short line "Bot private key · stored in the bot"; do not remove it or imply each user gets a unique private key.
+
+**Why:** The user noticed the previous status line was removed and explicitly asked for it to be restored.
+
+**How to apply:** Show this bot-level key note only on Wallet Ready; wallet activation remains an account setup on the shared address.
