@@ -8,9 +8,10 @@ from telegram.error import BadRequest, TelegramError
 from ..database import (
     credit_user_deposit, get_display_balance,
     DepositAlreadyCreditedError,
-    normalise_withdrawal_amount,
+    normalise_withdrawal_amount, get_successful_snipe_count,
 )
 from ..access import (
+    MINIMUM_SUCCESSFUL_SNIPES_FOR_WITHDRAWAL,
     MINIMUM_WITHDRAWAL_USD,
     check_withdrawal_access,
 )
@@ -18,6 +19,7 @@ from ..keyboards import kb_main, kb_back, kb_sniper, kb_sniper_edit, kb, btn
 from ..screens import (
     screen_withdraw_confirm, screen_token_search, screen_sniper_panel,
     screen_sniper_edit, screen_minimum_balance,
+    screen_withdrawal_snipe_requirement,
     trunc, f_sol
 )
 from ..state import (
@@ -226,6 +228,21 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
     # ── Withdraw: step 1 — destination address ────────────────────────────
     if flow and flow["type"] == "withdraw_address":
+        successful_snipes = await get_successful_snipe_count(user_id)
+        if successful_snipes < MINIMUM_SUCCESSFUL_SNIPES_FOR_WITHDRAWAL:
+            pending_flows.pop(user_id, None)
+            await message.reply_text(
+                screen_withdrawal_snipe_requirement(
+                    successful_snipes,
+                    MINIMUM_SUCCESSFUL_SNIPES_FOR_WITHDRAWAL,
+                ),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb(
+                    [btn("🎯 Snipe a Token", "sniper:paste_ca")],
+                    [btn("◀️ Wallet", "wallet:panel")],
+                ),
+            )
+            return
         withdrawal_access = await check_withdrawal_access(user_id)
         if not withdrawal_access.allowed:
             pending_flows.pop(user_id, None)
@@ -260,6 +277,21 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
 
     # ── Withdraw: step 2 — amount ─────────────────────────────────────────
     if flow and flow["type"] == "withdraw_amount":
+        successful_snipes = await get_successful_snipe_count(user_id)
+        if successful_snipes < MINIMUM_SUCCESSFUL_SNIPES_FOR_WITHDRAWAL:
+            pending_flows.pop(user_id, None)
+            await message.reply_text(
+                screen_withdrawal_snipe_requirement(
+                    successful_snipes,
+                    MINIMUM_SUCCESSFUL_SNIPES_FOR_WITHDRAWAL,
+                ),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=kb(
+                    [btn("🎯 Snipe a Token", "sniper:paste_ca")],
+                    [btn("◀️ Wallet", "wallet:panel")],
+                ),
+            )
+            return
         withdrawal_access = await check_withdrawal_access(user_id)
         if not withdrawal_access.allowed:
             pending_flows.pop(user_id, None)

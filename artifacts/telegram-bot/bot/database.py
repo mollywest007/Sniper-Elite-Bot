@@ -796,6 +796,21 @@ async def get_positions(user_id: int | None = None) -> list[dict[str, Any]]:
         return [dict(r) for r in rows]
 
 
+async def get_successful_snipe_count(user_id: int) -> int:
+    """Count successful bot buy records for withdrawal eligibility."""
+    await ensure_bot_user(user_id)
+    async with pool().acquire() as conn:
+        count = await conn.fetchval(
+            """SELECT COUNT(*)
+               FROM trades
+               WHERE telegram_user_id=$1
+                 AND type='buy'
+                 AND status='success'::trade_status""",
+            user_id,
+        )
+    return int(count or 0)
+
+
 async def refresh_user_positions(user_id: int) -> list[dict[str, Any]]:
     """Refresh open position values from live market prices."""
     positions = await get_positions(user_id)

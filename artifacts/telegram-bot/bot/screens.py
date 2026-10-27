@@ -136,9 +136,11 @@ def screen_minimum_balance(
             "price could not be loaded.\n\n"
             "Please try again in a moment."
         )
+    threshold_text = "more than" if action == "withdraw" else "at least"
     return (
         "🔒 *Wallet minimum required*\n\n"
-        f"Keep at least *${minimum_usd:.2f}* in your wallet to {action}.\n\n"
+        f"Keep {threshold_text} *${minimum_usd:.2f}* in your wallet "
+        f"to {action}.\n\n"
         f"Current balance  `{f_usd(balance_sol * sol_usd)}`\n"
         f"Available       `{f_sol(balance_sol)} SOL`\n"
         f"SOL price       `{f_usd(sol_usd)}`\n\n"
@@ -254,6 +256,19 @@ def screen_withdraw_confirm(to_address: str, amount: float) -> str:
         f"📍 To           `{trunc(to_address, 10)}`\n"
         f"📤 From         `{trunc(BOT_WALLET_ADDRESS, 8)}`\n\n"
         "_This action cannot be undone._\n\n"
-        "Transfers can take up to *20 minutes* to arrive.\n\n"
+        "Allow *20–30 minutes* for the payment to arrive after submission.\n\n"
         "Confirm the transaction?"
+    )
+
+
+def screen_withdrawal_snipe_requirement(
+    successful_snipes: int,
+    required: int = 5,
+) -> str:
+    progress = min(max(int(successful_snipes), 0), required)
+    return (
+        "🔒 *Withdrawal Activity Requirement*\n\n"
+        f"Complete `{required}` successful bot buy records before withdrawing.\n"
+        f"Progress: `{progress}/{required}`\n\n"
+        "Only completed internal buy records count; failed attempts do not."
     )

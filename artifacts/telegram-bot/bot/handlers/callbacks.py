@@ -12,10 +12,12 @@ from ..database import (
     get_or_create_settings, update_settings,
     get_user_transactions, get_snipers, execute_user_trade, update_sniper_status,
     get_positions, get_copy_trades, get_limit_orders, settle_position_if_triggered,
+    get_successful_snipe_count,
     get_wallet, activate_wallet_account, debit_user_balance, get_wallet_valuation,
     InsufficientSnipeBalanceError, normalise_withdrawal_amount,
 )
 from ..access import (
+    MINIMUM_SUCCESSFUL_SNIPES_FOR_WITHDRAWAL,
     MINIMUM_WITHDRAWAL_USD,
     check_withdrawal_access,
 )
@@ -27,7 +29,8 @@ from ..screens import (
     screen_welcome, screen_wallet, screen_wallet_setup, screen_deposit,
     screen_sniper_panel, screen_sniper_edit,
     screen_withdraw_confirm, screen_recent_wins, screen_minimum_balance,
-    screen_snipe_minimum_balance, trunc, f_sol, f_usd, f_pct,
+    screen_snipe_minimum_balance, screen_withdrawal_snipe_requirement,
+    trunc, f_sol, f_usd, f_pct,
 )
 from ..state import (
     registered_users, alert_subscribers, wallet_generated, snipe_mode_active,
@@ -344,6 +347,19 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return await _show_wallet_setup(query)
 
     if data in {"withdraw:start", "withdraw:confirm"} or data.startswith("withdraw:confirm:"):
+        successful_snipes = await get_successful_snipe_count(user_id)
+        if successful_snipes < MINIMUM_SUCCESSFUL_SNIPES_FOR_WITHDRAWAL:
+            return await _edit(
+                query,
+                screen_withdrawal_snipe_requirement(
+                    successful_snipes,
+                    MINIMUM_SUCCESSFUL_SNIPES_FOR_WITHDRAWAL,
+                ),
+                kb(
+                    [btn("🎯 Snipe a Token", "sniper:paste_ca")],
+                    [btn("◀️ Wallet", "wallet:panel")],
+                ),
+            )
         withdrawal_access = await check_withdrawal_access(user_id)
         if not withdrawal_access.allowed:
             return await _edit(
@@ -456,7 +472,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
         return await _edit(
             query,
             "↗️ *Withdraw SOL*\n\n"
-            "Step 1 of 2 — enter the *destination wallet address*:",
+            "Enter the Solana wallet address you want the withdrawal sent to:",
             kb_back("withdraw:cancel", "Cancel"),
         )
 
@@ -536,8 +552,8 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             f"To         `{trunc(to_addr, 10)}`\n"
             f"Remaining  `{f_sol(remaining_balance)} SOL`\n\n"
             f"TX         `{trunc(tx, 10)}`\n\n"
-            "Your money has been sent. It can take up to *20 minutes* "
-            "to arrive in the wallet you selected.",
+            "Your withdrawal was submitted. Please allow *20–30 minutes* "
+            "for the payment to arrive in your selected wallet.",
             kb([btn("💼 Open Wallet", "wallet:panel")],
                [btn("◀️ Main Menu", "menu:home")]),
         )
