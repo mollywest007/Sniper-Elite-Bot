@@ -50,4 +50,3 @@ externalPort = 8081
 [userenv]
 
 [userenv.shared]
-BOT_ADMIN_TELEGRAM_ID = "t.me/senpaipl9"

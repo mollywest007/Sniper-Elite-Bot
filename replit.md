@@ -8,9 +8,9 @@ and commands. There is no website or browser dashboard.
 
 - Telegram Bot workflow: `cd artifacts/telegram-bot && uv run python main.py`
 - After changing Python bot code: restart the **Telegram Bot** workflow.
-- Required secrets: `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`
+- Required secret: `TELEGRAM_BOT_TOKEN`
 - Optional environment variables: `BOT_WALLET_ADDRESS`, `BOT_WALLET_PRIVATE_KEY`,
-  `ADMIN_USERNAME`, `COOLDOWN_MS`
+  `BOT_ADMIN_TELEGRAM_ID` (numeric Telegram user ID), `COOLDOWN_MS`
 
 ## Stack
 
@@ -45,9 +45,10 @@ After a fresh import:
 
 1. Install the workspace dependencies with `pnpm install`.
 2. Apply the PostgreSQL schema with `pnpm --filter @workspace/db run push`.
-3. Ensure `DATABASE_URL` and `TELEGRAM_BOT_TOKEN` are set as Replit Secrets.
-   The Telegram Bot workflow installs the Python dependencies through `uv`
-   automatically.
+3. Replit's PostgreSQL database provides `DATABASE_URL` automatically. Add
+   `TELEGRAM_BOT_TOKEN` as a Replit Secret. The optional
+   `BOT_ADMIN_TELEGRAM_ID` must be a numeric Telegram user ID. The Telegram Bot
+   workflow installs the Python dependencies through `uv` automatically.
 4. Start the **Telegram Bot** workflow.
 5. Send `/start` to the bot in Telegram.
 
