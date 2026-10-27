@@ -11,7 +11,7 @@ from ..database import (
     credit_user_deposit, get_display_balance, get_user_balance, touch_bot_user,
     get_or_create_settings, update_settings,
     get_user_transactions, get_snipers, execute_user_trade, update_sniper_status,
-    get_positions, get_copy_trades, get_limit_orders,
+    get_positions, get_copy_trades, get_limit_orders, settle_position_if_triggered,
     get_wallet, activate_wallet_account, debit_user_balance, get_wallet_valuation,
     InsufficientSnipeBalanceError, normalise_withdrawal_amount,
 )
@@ -34,7 +34,7 @@ from ..state import (
     pending_flows, is_rate_limited, get_sniper_config,
     tracked_wallet_address, remember_active_screen,
 )
-from ..market import fetch_recent_solana_gainers
+from ..market import fetch_recent_solana_gainers, fetch_token_market
 from ..solana import WalletTransferError, send_sol_transfer
 from ..config import BOT_WALLET_ADDRESS
 from ..logger import logger
@@ -131,6 +131,75 @@ async def _show_main_menu(query, user_id: int) -> None:
         valuation = await get_wallet_valuation(user_id)
         wallet_value = valuation["total_value"]
     return await _edit(query, screen_welcome(wallet_value), kb_main(user_id))
+
+
+async def _show_portfolio(query, user_id: int):
+    valuation = await get_wallet_valuation(user_id)
+    positions = valuation["positions"]
+    text = (
+        f"📊 *Portfolio*\n\n"
+        f"💰 Available SOL  `{f_sol(valuation['cash_balance'])} SOL`\n"
+        f"🪙 Holdings       `{f_sol(valuation['positions_value'])} SOL`\n"
+        f"💎 Total Value    `{f_sol(valuation['total_value'])} SOL`\n"
+        f"📈 Unrealized P/L `{f_sol(valuation['unrealized_pnl'])} SOL`\n\n"
+    )
+    rows = []
+    if not positions:
+        text += "No open positions.\n\nUse the Sniper Panel to start trading."
+    else:
+        total = sum(float(p["value_sol"]) for p in positions)
+        text += f"Positions  {len(positions)}  ·  Value  `{f_sol(total)} SOL`\n\n"
+        for position in positions:
+            pnl = float(position["pnl_percent"])
+            result_label = "Gain" if pnl >= 0 else "Loss"
+            text += (
+                f"{result_label} {position['token_symbol']}  "
+                f"`{f_sol(position['value_sol'])} SOL`  {f_pct(pnl)}\n"
+                f"   MC {f_usd(float(position['market_cap_usd']))}\n\n"
+            )
+            symbol = str(position.get("token_symbol") or "Token")[:18]
+            rows.append([
+                btn(
+                    f"Close {symbol}",
+                    f"portfolio:close:{int(position['id'])}",
+                )
+            ])
+        text += "Choose a position below to review a manual close."
+
+    rows.extend([
+        [
+            btn("Sniper Panel", "sniper:panel"),
+            btn("TX History", "wallet:history"),
+        ],
+        [btn("◀ Main Menu", "menu:home")],
+    ])
+    return await _edit(query, text, InlineKeyboardMarkup(rows))
+
+
+async def _get_user_position_and_market(user_id: int, position_id: int):
+    positions = await get_positions(user_id)
+    position = next(
+        (item for item in positions if int(item["id"]) == position_id),
+        None,
+    )
+    if not position:
+        return None, None
+
+    try:
+        market = await fetch_token_market(position["contract_address"])
+        price_sol = float(market["price_sol"]) if market else 0
+        if price_sol <= 0:
+            return position, None
+        return position, market
+    except (KeyError, TypeError, ValueError):
+        return position, None
+    except Exception as exc:
+        logger.warning(
+            "Could not refresh quote for portfolio position %s: %s",
+            position_id,
+            exc,
+        )
+        return position, None
 
 
 def _rand_tx() -> str:
@@ -659,34 +728,107 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
 
     # ── Portfolio ─────────────────────────────────────────────────────────
     if data == "portfolio":
-        valuation = await get_wallet_valuation(user_id)
-        positions = valuation["positions"]
-        balance = valuation["cash_balance"]
-        text = (
-            f"📊 *Portfolio*\n\n"
-            f"💰 Available SOL  `{f_sol(balance)} SOL`\n"
-            f"🪙 Holdings       `{f_sol(valuation['positions_value'])} SOL`\n"
-            f"💎 Total Value    `{f_sol(valuation['total_value'])} SOL`\n"
-            f"📈 Unrealized P/L `{f_sol(valuation['unrealized_pnl'])} SOL`\n\n"
+        return await _show_portfolio(query, user_id)
+
+    if data.startswith(("portfolio:close:", "portfolio:confirm-close:")):
+        action, raw_position_id = data.split(":")[1:3]
+        try:
+            position_id = int(raw_position_id)
+            if position_id <= 0:
+                raise ValueError
+        except ValueError:
+            return await _edit(
+                query,
+                "That portfolio position is not available.",
+                kb_back("portfolio", "◀ Portfolio"),
+            )
+
+        position, market = await _get_user_position_and_market(
+            user_id,
+            position_id,
         )
-        if not positions:
-            text += "No open positions.\n\nUse the Sniper Panel to start trading."
-        else:
-            total = sum(float(p["value_sol"]) for p in positions)
-            text += f"Positions  {len(positions)}  ·  Value  `{f_sol(total)} SOL`\n\n"
-            for p in positions:
-                pnl = float(p["pnl_percent"])
-                dot = "Gain" if pnl >= 0 else "Loss"
-                text += (
-                    f"{dot} {p['token_symbol']}  `{f_sol(p['value_sol'])} SOL`  "
-                    f"{f_pct(pnl)}\n"
-                    f"   MC {f_usd(float(p['market_cap_usd']))}\n\n"
-                )
+        if not position:
+            return await _edit(
+                query,
+                "This position is no longer open.",
+                kb_back("portfolio", "◀ Portfolio"),
+            )
+        if not market:
+            return await _edit(
+                query,
+                "Could not get a live quote. The position remains open.",
+                kb_back("portfolio", "◀ Portfolio"),
+            )
+
+        current_price = float(market["price_sol"])
+        amount_tokens = float(position["amount_tokens"])
+        invested_sol = amount_tokens * float(position["entry_price_sol"])
+        proceeds_sol = amount_tokens * current_price
+        pnl_sol = proceeds_sol - invested_sol
+        pnl_percent = pnl_sol / invested_sol * 100 if invested_sol else 0
+        pnl_sign = "+" if pnl_sol >= 0 else ""
+        symbol = str(position.get("token_symbol") or "TOKEN").replace("`", "")
+
+        if action == "close":
+            return await _edit(
+                query,
+                f"⚠️ *Confirm Manual Close*\n\n"
+                f"Token          `{symbol}`\n"
+                f"Live price     `{current_price:.12g} SOL`\n"
+                f"Est. proceeds  `{f_sol(proceeds_sol)} SOL`\n"
+                f"Est. P/L       `{pnl_sign}{f_sol(pnl_sol)} SOL "
+                f"({pnl_sign}{pnl_percent:.2f}%)`\n\n"
+                "This closes the position in your bot portfolio and credits "
+                "the estimated SOL shown. It does *not* send an on-chain sell "
+                "transaction; the final quote may change.",
+                kb(
+                    [btn("Confirm Close", f"portfolio:confirm-close:{position_id}")],
+                    [btn("Cancel", "portfolio")],
+                ),
+            )
+
+        try:
+            result = await settle_position_if_triggered(
+                position_id,
+                current_price,
+                market,
+                force=True,
+                user_id=user_id,
+            )
+        except Exception as exc:
+            logger.error(
+                "Manual portfolio close failed for user %s, position %s: %s",
+                user_id,
+                position_id,
+                exc,
+            )
+            return await _edit(
+                query,
+                "Could not close this position. It remains open; please try again.",
+                kb_back("portfolio", "◀ Portfolio"),
+            )
+
+        if not result:
+            return await _edit(
+                query,
+                "This position was already closed or is no longer available.",
+                kb_back("portfolio", "◀ Portfolio"),
+            )
+
+        realized_pnl = float(result["pnl_sol"])
+        realized_sign = "+" if realized_pnl >= 0 else ""
         return await _edit(
-            query, text,
+            query,
+            f"✅ *Position Closed*\n\n"
+            f"Token      `{result['symbol']}`\n"
+            f"Proceeds   `{f_sol(result['value_sol'])} SOL`\n"
+            f"Realized P/L  `{realized_sign}{f_sol(realized_pnl)} SOL "
+            f"({realized_sign}{float(result['pnl_percent']):.2f}%)`\n"
+            f"Available  `{f_sol(result['balance_sol'])} SOL`\n\n"
+            "This was an internal portfolio close; no on-chain sell "
+            "transaction was sent.",
             kb(
-                [btn("Sniper Panel", "sniper:panel"),
-                 btn("TX History", "wallet:history")],
+                [btn("Portfolio", "portfolio")],
                 [btn("◀ Main Menu", "menu:home")],
             ),
         )

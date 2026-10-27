@@ -500,22 +500,35 @@ async def settle_position_if_triggered(
     position_id: int,
     current_price_sol: float,
     market: dict[str, Any],
+    *,
+    force: bool = False,
+    user_id: int | None = None,
 ) -> dict[str, Any] | None:
-    """Close an open position at its TP or SL and credit the user ledger.
+    """Close an open position and credit the user ledger.
 
     The position lock and ledger credit share one transaction so a scheduled
     monitor cannot sell the same position twice or credit a partial result.
-    Returns the settlement details when a trigger fires, otherwise None.
+    With force=True, close it manually regardless of TP/SL. When user_id is
+    provided, only that user's position can be closed.
     """
     if current_price_sol <= 0:
         return None
 
     async with pool().acquire() as conn:
         async with conn.transaction():
-            position = await conn.fetchrow(
-                "SELECT * FROM positions WHERE id=$1 FOR UPDATE",
-                position_id,
-            )
+            if user_id is None:
+                position = await conn.fetchrow(
+                    "SELECT * FROM positions WHERE id=$1 FOR UPDATE",
+                    position_id,
+                )
+            else:
+                position = await conn.fetchrow(
+                    """SELECT * FROM positions
+                       WHERE id=$1 AND telegram_user_id=$2
+                       FOR UPDATE""",
+                    position_id,
+                    user_id,
+                )
             if not position:
                 return None
 
@@ -528,7 +541,7 @@ async def settle_position_if_triggered(
             take_profit_percent = float(position["take_profit_percent"])
             stop_loss_percent = float(position["stop_loss_percent"])
 
-            if (
+            if not force and (
                 not position["auto_sell"]
                 or (
                     pnl_percent < take_profit_percent
@@ -550,8 +563,15 @@ async def settle_position_if_triggered(
                 )
                 return None
 
-            reason = "take_profit" if pnl_percent >= take_profit_percent else "stop_loss"
-            tx_hash = f"auto-sell-{position_id}-{secrets.token_hex(24)}"
+            reason = (
+                "manual_close"
+                if force
+                else "take_profit"
+                if pnl_percent >= take_profit_percent
+                else "stop_loss"
+            )
+            tx_prefix = "internal-close" if force else "auto-sell"
+            tx_hash = f"{tx_prefix}-{position_id}-{secrets.token_hex(24)}"
             balance_row = await conn.fetchrow(
                 """UPDATE bot_accounts
                    SET balance_sol = balance_sol + $1, updated_at = NOW()
@@ -572,7 +592,12 @@ async def settle_position_if_triggered(
                 f"{value_sol:.9f}",
                 balance_row["balance_sol"],
                 tx_hash,
-                f"Auto-sell {position['token_symbol']} ({reason.replace('_', ' ')})",
+                (
+                    f"Manual portfolio close {position['token_symbol']}"
+                    if force
+                    else f"Auto-sell {position['token_symbol']} "
+                    f"({reason.replace('_', ' ')})"
+                ),
             )
             await conn.execute(
                 """INSERT INTO trades
