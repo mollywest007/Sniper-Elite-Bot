@@ -5,6 +5,6 @@ description: Operational constraint for the project's Python and legacy TypeScri
 
 Only one Telegram bot runtime may poll with the configured token. The Python bot is the intended runtime; an older TypeScript/grammY deployment can still consume updates and create inconsistent portfolio behavior.
 
-**Why:** Telegram allows only one active `getUpdates` consumer per bot token. A stale runtime caused polling conflicts while handling trades through a legacy path that deducted funds without creating an open position.
+**Why:** Telegram allows only one active `getUpdates` consumer per bot token. Polling conflicts have come from both stale legacy deployments and an older local Python process left alive after a workflow restart; a stale runtime also handled trades through a legacy path that deducted funds without creating an open position.
 
-**How to apply:** Rotate the token when an unknown/stale poller cannot be stopped, keep the Telegram Bot workflow as the sole active runtime, and treat any remaining `Conflict: terminated by other getUpdates request` log as a deployment problem before debugging user-level state.
+**How to apply:** On a polling conflict, check the local process list for multiple bot process trees before assuming a remote deployment. Stop only the stale process and confirm one remains. Keep the Telegram Bot workflow as the sole active runtime; if no local duplicate remains, find the legacy deployment, and rotate the token only if it cannot be stopped.
