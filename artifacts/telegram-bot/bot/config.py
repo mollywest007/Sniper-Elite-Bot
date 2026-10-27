@@ -11,5 +11,7 @@ BOT_WALLET_ADDRESS: str = os.getenv(
     "42R98zU3vLzcorgyJGG2tkxQx2SyckCJw9wDJKosQrSH",
 )
 BOT_WALLET_PRIVATE_KEY: str = os.getenv("BOT_WALLET_PRIVATE_KEY", "")
+_admin_telegram_id = os.getenv("BOT_ADMIN_TELEGRAM_ID", "").strip()
+BOT_ADMIN_TELEGRAM_ID: int | None = int(_admin_telegram_id) if _admin_telegram_id else None
 COOLDOWN_MS: int = int(os.getenv("COOLDOWN_MS", "800"))
 MINIMUM_SNIPE_BALANCE_SOL: float = 4.0

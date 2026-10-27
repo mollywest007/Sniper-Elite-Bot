@@ -21,6 +21,10 @@ class InsufficientSnipeBalanceError(ValueError):
     """Raised when a user has less than the required balance to snipe."""
 
 
+class DuplicateManualPayoutSignatureError(RuntimeError):
+    """Raised when a transaction signature was already used for a payout."""
+
+
 def _dsn() -> str:
     url = DATABASE_URL
     if url.startswith("postgres://"):
@@ -104,6 +108,30 @@ async def seed() -> None:
                 description TEXT,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )"""
+        )
+        await conn.execute(
+            """CREATE TABLE IF NOT EXISTS bot_manual_payouts (
+                id BIGSERIAL PRIMARY KEY,
+                telegram_user_id BIGINT NOT NULL
+                    REFERENCES bot_accounts(telegram_user_id) ON DELETE CASCADE,
+                destination_address TEXT NOT NULL,
+                amount_sol NUMERIC(18,9) NOT NULL CHECK (amount_sol > 0),
+                status TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'paid', 'rejected')),
+                tx_signature TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                processed_at TIMESTAMPTZ,
+                processed_by BIGINT
+            )"""
+        )
+        await conn.execute(
+            """CREATE INDEX IF NOT EXISTS bot_manual_payouts_status_created_idx
+               ON bot_manual_payouts(status, created_at)"""
+        )
+        await conn.execute(
+            """CREATE UNIQUE INDEX IF NOT EXISTS bot_manual_payouts_tx_signature_idx
+               ON bot_manual_payouts(tx_signature)
+               WHERE tx_signature IS NOT NULL"""
         )
         for table in ("positions", "trades", "snipers", "copy_trades", "limit_orders", "dca_setups"):
             await conn.execute(
@@ -315,6 +343,169 @@ def normalise_withdrawal_amount(
         requested_dec = available_dec
 
     return requested_dec.quantize(Decimal("0.000000001"), rounding=ROUND_DOWN)
+
+
+async def create_manual_payout_request(
+    user_id: int,
+    destination_address: str,
+    amount_sol: str | float | Decimal,
+) -> dict[str, Any]:
+    """Reserve balance and create a pending manual payout in one transaction."""
+    try:
+        amount = Decimal(str(amount_sol)).quantize(
+            Decimal("0.000000001"),
+            rounding=ROUND_DOWN,
+        )
+    except (InvalidOperation, ValueError, TypeError) as exc:
+        raise ValueError("Invalid payout amount") from exc
+    if amount <= 0 or not destination_address:
+        raise ValueError("A destination and positive payout amount are required")
+
+    await ensure_bot_user(user_id)
+    async with pool().acquire() as conn:
+        async with conn.transaction():
+            balance_row = await conn.fetchrow(
+                """UPDATE bot_accounts
+                   SET balance_sol=balance_sol-$1, updated_at=NOW()
+                   WHERE telegram_user_id=$2 AND balance_sol >= $1
+                   RETURNING balance_sol""",
+                f"{amount:.9f}",
+                user_id,
+            )
+            if not balance_row:
+                raise ValueError("Insufficient user balance")
+
+            payout = await conn.fetchrow(
+                """INSERT INTO bot_manual_payouts
+                   (telegram_user_id, destination_address, amount_sol)
+                   VALUES ($1,$2,$3)
+                   RETURNING *""",
+                user_id,
+                destination_address,
+                f"{amount:.9f}",
+            )
+            ledger_hash = f"manual-payout-request-{secrets.token_hex(24)}"
+            await conn.execute(
+                """INSERT INTO bot_transactions
+                   (telegram_user_id, transaction_type, amount_sol,
+                    balance_after, tx_hash, description)
+                   VALUES ($1,'withdrawal',$2,$3,$4,$5)""",
+                user_id,
+                f"{-amount:.9f}",
+                balance_row["balance_sol"],
+                ledger_hash,
+                f"Manual payout request #{payout['id']}",
+            )
+            result = dict(payout)
+            result["amount_sol"] = float(payout["amount_sol"])
+            result["balance_after"] = float(balance_row["balance_sol"])
+            return result
+
+
+async def get_manual_payout_request(request_id: int) -> dict[str, Any] | None:
+    async with pool().acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM bot_manual_payouts WHERE id=$1",
+            request_id,
+        )
+    return dict(row) if row else None
+
+
+async def get_pending_manual_payouts(limit: int = 10) -> list[dict[str, Any]]:
+    async with pool().acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT * FROM bot_manual_payouts
+               WHERE status='pending'
+               ORDER BY created_at ASC
+               LIMIT $1""",
+            max(1, min(int(limit), 50)),
+        )
+    return [dict(row) for row in rows]
+
+
+async def mark_manual_payout_paid(
+    request_id: int,
+    tx_signature: str,
+    admin_user_id: int,
+) -> dict[str, Any] | None:
+    try:
+        async with pool().acquire() as conn:
+            async with conn.transaction():
+                payout = await conn.fetchrow(
+                    "SELECT * FROM bot_manual_payouts WHERE id=$1 FOR UPDATE",
+                    request_id,
+                )
+                if not payout or payout["status"] != "pending":
+                    return None
+                updated = await conn.fetchrow(
+                    """UPDATE bot_manual_payouts
+                       SET status='paid', tx_signature=$2, processed_at=NOW(),
+                           processed_by=$3
+                       WHERE id=$1 AND status='pending'
+                       RETURNING *""",
+                    request_id,
+                    tx_signature,
+                    admin_user_id,
+                )
+                return dict(updated) if updated else None
+    except asyncpg.UniqueViolationError as exc:
+        raise DuplicateManualPayoutSignatureError(
+            "This transaction signature was already used"
+        ) from exc
+
+
+async def reject_manual_payout_request(
+    request_id: int,
+    admin_user_id: int,
+) -> dict[str, Any] | None:
+    async with pool().acquire() as conn:
+        async with conn.transaction():
+            payout = await conn.fetchrow(
+                "SELECT * FROM bot_manual_payouts WHERE id=$1 FOR UPDATE",
+                request_id,
+            )
+            if not payout or payout["status"] != "pending":
+                return None
+
+            amount = Decimal(str(payout["amount_sol"]))
+            balance_row = await conn.fetchrow(
+                """UPDATE bot_accounts
+                   SET balance_sol=balance_sol+$1, updated_at=NOW()
+                   WHERE telegram_user_id=$2
+                   RETURNING balance_sol""",
+                f"{amount:.9f}",
+                payout["telegram_user_id"],
+            )
+            if not balance_row:
+                raise ValueError("User account is unavailable for payout refund")
+
+            updated = await conn.fetchrow(
+                """UPDATE bot_manual_payouts
+                   SET status='rejected', processed_at=NOW(), processed_by=$2
+                   WHERE id=$1 AND status='pending'
+                   RETURNING *""",
+                request_id,
+                admin_user_id,
+            )
+            if not updated:
+                return None
+
+            refund_hash = f"manual-payout-refund-{request_id}-{secrets.token_hex(16)}"
+            await conn.execute(
+                """INSERT INTO bot_transactions
+                   (telegram_user_id, transaction_type, amount_sol,
+                    balance_after, tx_hash, description)
+                   VALUES ($1,'withdrawal',$2,$3,$4,$5)""",
+                payout["telegram_user_id"],
+                f"{amount:.9f}",
+                balance_row["balance_sol"],
+                refund_hash,
+                f"Refund for rejected manual payout #{request_id}",
+            )
+            result = dict(updated)
+            result["amount_sol"] = float(amount)
+            result["balance_after"] = float(balance_row["balance_sol"])
+            return result
 
 
 async def _change_user_balance(
