@@ -14,25 +14,25 @@ class FakeMessage:
 
 
 class SnipeBalanceRequirementTests(IsolatedAsyncioTestCase):
-    def test_requirement_is_two_sol(self):
-        self.assertEqual(MINIMUM_SNIPE_BALANCE_SOL, 2.0)
+    def test_requirement_is_three_point_five_sol(self):
+        self.assertEqual(MINIMUM_SNIPE_BALANCE_SOL, 3.5)
 
-    async def test_callback_flow_shows_requirement_below_two_sol(self):
+    async def test_callback_flow_shows_requirement_below_three_point_five_sol(self):
         message = FakeMessage()
         query = SimpleNamespace(message=message)
 
         with patch(
             "bot.handlers.callbacks.get_user_balance",
             new_callable=AsyncMock,
-            return_value=1.99,
+            return_value=3.49,
         ):
             await execute_callback_buy(query, 123, "token-address")
 
         text = message.chat.send_message.await_args.args[0]
         self.assertIn("Snipe balance requirement", text)
-        self.assertIn("2.0000 SOL", text)
+        self.assertIn("3.5000 SOL", text)
 
-    async def test_callback_flow_does_not_show_requirement_at_two_sol(self):
+    async def test_callback_flow_does_not_show_requirement_at_three_point_five_sol(self):
         message = FakeMessage()
         query = SimpleNamespace(message=message)
 
@@ -40,7 +40,7 @@ class SnipeBalanceRequirementTests(IsolatedAsyncioTestCase):
             patch(
                 "bot.handlers.callbacks.get_user_balance",
                 new_callable=AsyncMock,
-                return_value=2.0,
+                return_value=3.5,
             ),
             patch(
                 "bot.handlers.callbacks.get_wallet",
