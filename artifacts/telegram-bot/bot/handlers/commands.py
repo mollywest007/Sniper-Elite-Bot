@@ -114,7 +114,7 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         "[Jupiter](https://jup.ag)\n"
         "[Pump fun](https://pump.fun)\n\n"
         "*Support*\n"
-        "Contact  t.me/developer9997"
+        "Contact  t.me/aliymolly"
     )
     await _reply(
         update,

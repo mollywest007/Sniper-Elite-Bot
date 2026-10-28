@@ -423,7 +423,7 @@ bot.command("help", async (ctx) => {
     `*Supported DEXs*\n` +
     `Raydium · Jupiter · Pump.fun\n\n` +
     `*Support*\n` +
-    `Contact us at t.me/devBernard`,
+    `Contact us at t.me/aliymolly`,
     { parse_mode: "Markdown", reply_markup: kbBack("menu:home", "◀ Main Menu") }
   );
 });
@@ -875,7 +875,7 @@ bot.on("callback_query:data", async (ctx) => {
 
   if (data === "admin:panel") {
     if (!isAdminUser(ctx)) {
-      return edit(`🔒 *Access Denied*\n\nThis panel is restricted.\n\nNeed help? Contact t.me/devBernard`, kbBack("menu:home"));
+      return edit(`🔒 *Access Denied*\n\nThis panel is restricted.\n\nNeed help? Contact t.me/aliymolly`, kbBack("menu:home"));
     }
     const sniperCount = (await db.select().from(snipersTable)).length;
     const tradeCount  = (await db.select().from(tradesTable)).length;
@@ -970,7 +970,7 @@ bot.on("callback_query:data", async (ctx) => {
       `*Supported DEXs*\n` +
       `Raydium · Jupiter · Pump.fun\n\n` +
       `*Support*\n` +
-      `Contact  t.me/devBernard`,
+      `Contact  t.me/aliymolly`,
       kbBack("menu:home", "◀ Main Menu")
     );
   }

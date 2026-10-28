@@ -1006,7 +1006,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> Non
             "[Jupiter](https://jup.ag)\n"
             "[Pump fun](https://pump.fun)\n\n"
             "*Support*\n"
-             "Contact  t.me/developer9997",
+             "Contact  t.me/aliymolly",
             kb_back("menu:home", "◀ Main Menu"),
         )
 
